@@ -153,7 +153,7 @@ module.exports = function (ssb, listenAddr, onEnd) {
         else if (err) {
           ended = true
           cb(null,
-            '<h3>' + err.toString() + '</h3>' +
+            '<h3>' + err.name + '</h3>' +
             '<pre>' + escapeHTML(err.stack) + '</pre>')
         } else
           cb(null, data)
@@ -172,7 +172,7 @@ module.exports = function (ssb, listenAddr, onEnd) {
       '<!doctype html><html><head><meta charset=utf-8>',
       '<title>' + err.name + '</title></head><body>',
       '<h1><a href="/">git ssb</a></h1>',
-      '<h2>' + err.toString() + '</h3>' +
+      '<h2>' + err.name + '</h3>' +
       (note ? '<p>' + note + '</p>' : '') +
       '<pre>' + escapeHTML(err.stack) + '</pre>' +
       '</body></html>'
