@@ -73,6 +73,16 @@ function readOnce(fn) {
   }
 }
 
+function tryDecodeURIComponent(str) {
+  if (!str || (str[0] == '%' && ref.isBlobId(str)))
+    return str
+  try {
+    str = decodeURIComponent(str)
+  } finally {
+    return str
+  }
+}
+ 
 var msgTypes = {
   'git-repo': true,
   'git-update': true
@@ -125,7 +135,7 @@ module.exports = function (listenAddr, cb) {
 
   function handleRequest(req) {
     var u = url.parse(req.url)
-    var dirs = u.pathname.slice(1).split(/\/+/).map(decodeURIComponent)
+    var dirs = u.pathname.slice(1).split(/\/+/).map(tryDecodeURIComponent)
     switch (dirs[0]) {
       case '':
         return serveIndex(req)
