@@ -208,29 +208,29 @@ module.exports = function (listenAddr, cb) {
       }),
       pull.take(20),
       pull.asyncMap(function (msg, cb) {
-        switch (msg.value.content.type) {
-          case 'git-repo': return renderRepoCreated(msg, cb)
-          case 'git-update': return renderUpdate(msg, cb)
-        }
+        about.getName(msg.value.author, function (err, name) {
+        if (err) return cb(err)
+          switch (msg.value.content.type) {
+            case 'git-repo': return renderRepoCreated(msg, name, cb)
+            case 'git-update': return renderUpdate(msg, name, cb)
+          }
+        })
       })
     )
   }
 
-  function renderRepoCreated(msg, cb) {
+  function renderRepoCreated(msg, authorName, cb) {
     var repoLink = link([msg.key])
-    var authorLink = link([msg.value.author])
+    var authorLink = link([msg.value.author], authorName)
     cb(null, '<p>' + timestamp(msg.value.timestamp) + '<br>' +
       authorLink + ' created repo ' + repoLink + '</p>')
   }
 
-  function renderUpdate(msg, cb) {
-    about.getName(msg.value.author, function (err, name) {
-      if (err) return cb(err)
-      var repoLink = link([msg.value.content.repo])
-      var authorLink = link([msg.value.author], name)
-      cb(null, '<p>' + timestamp(msg.value.timestamp) + '<br>' +
-        authorLink + ' pushed to ' + repoLink + '</p>')
-    })
+  function renderUpdate(msg, authorName, cb) {
+    var repoLink = link([msg.value.content.repo])
+    var authorLink = link([msg.value.author], authorName)
+    cb(null, '<p>' + timestamp(msg.value.timestamp) + '<br>' +
+      authorLink + ' pushed to ' + repoLink + '</p>')
   }
 
   /* Index */
