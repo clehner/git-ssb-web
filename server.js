@@ -7,13 +7,15 @@ var appName = process.env.ssb_appname ||
   require('child_process').spawnSync('git', ['config', 'ssb.appname'],
     {encoding: 'utf8'}).stdout.trim()
 var ssbConfig = require('ssb-config/inject')(appName)
+var ssbClient = require('ssb-client')
 var keys = require('ssb-keys')
   .loadOrCreateSync(require('path').join(ssbConfig.path, 'secret'))
 
-require('ssb-client')(keys, ssbConfig, function (err, sbot) {
-  if (err) throw err
-  require('.')(sbot, process.argv[3], function (err) {
-    sbot.close()
+require('.')(process.argv[3], function (err, server) {
+  require('ssb-reconnect')(function (cb) {
+    ssbClient(keys, ssbConfig, cb)
+  }, function (err, ssb, reconnect) {
     if (err) throw err
+    server.setSSB(ssb, reconnect)
   })
 })

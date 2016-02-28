@@ -81,22 +81,23 @@ var refLabels = {
   heads: 'Branches'
 }
 
-module.exports = function (ssb, listenAddr, onEnd) {
-  // Prevent the rpc socket from closing.
-  // https://github.com/ssbc/ssb-client/issues/13
-  var keepalive = setInterval(ssb.whoami, 15e3)
-
-  ssb.on('error', function (err) {
-	clearTimeout(keepalive)
-	onEnd(err)
-  })
+module.exports = function (listenAddr, cb) {
+  var ssb, reconnect
 
   var addr = parseAddr(listenAddr, {host: 'localhost', port: 7718})
   http.createServer(onRequest).listen(addr.port, addr.host, onListening)
 
+  var server = {
+    setSSB: function (_ssb, _reconnect) {
+      ssb = _ssb
+      reconnect = _reconnect
+    }
+  }
+
   function onListening() {
     var host = ~addr.host.indexOf(':') ? '[' + addr.host + ']' : addr.host
     console.error('Listening on http://' + host + ':' + addr.port + '/')
+    cb(null, server)
   }
 
   /* Serving a request */
@@ -162,9 +163,8 @@ module.exports = function (ssb, listenAddr, onEnd) {
   }
 
   function serveError(id, err) {
-    var note =
-      (err.message == 'stream is closed') ?
-        'This means you have to restart <code>git ssb web</code>' : ''
+    if (err.message == 'stream is closed')
+      reconnect()
     return pull.values([
       [500, {
         'Content-Type': 'text/html'
@@ -173,7 +173,6 @@ module.exports = function (ssb, listenAddr, onEnd) {
       '<title>' + err.name + '</title></head><body>',
       '<h1><a href="/">git ssb</a></h1>',
       '<h2>' + err.name + '</h3>' +
-      (note ? '<p>' + note + '</p>' : '') +
       '<pre>' + escapeHTML(err.stack) + '</pre>' +
       '</body></html>'
     ])
