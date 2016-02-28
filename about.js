@@ -9,23 +9,10 @@
 
 var pull = require('pull-stream')
 var cat = require('pull-cat')
+var asyncMemo = require('./async-memo')
 
-module.exports = function (sbot, myId) {
-  var cache = {/* id: about */}
-  var callbacks = {/* id: [callback] */}
-
-  function getAbout(id, cb) {
-    if (id in cache)
-      return cb(null, cache[id])
-    if (id in callbacks)
-      return callbacks[id].push(cb)
-    var cbs = callbacks[id] = [cb]
-    getAboutFull(sbot, myId, id, function (err, about) {
-      var about = !err && (cache[id] = about)
-      while (cbs.length)
-        cbs.pop()(err, about)
-    })
-  }
+module.exports = function (sbot, id) {
+  var getAbout = asyncMemo(getAboutFull, sbot, id)
 
   getAbout.getName = function (id, cb) {
     getAbout(id, function (err, about) {
