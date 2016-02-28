@@ -197,26 +197,31 @@ module.exports = function (listenAddr, cb) {
   /* Feed */
 
   function renderFeed(feedId) {
+    var opts = {
+      reverse: true,
+      id: feedId
+    }
     return pull(
-      ssb.links({
-        reverse: true,
-        rel: 'repo',
-        source: feedId,
-        values: true
+      feedId ? ssb.createUserStream(opts) : ssb.createLogStream(opts),
+      pull.filter(function (msg) {
+        return msg.value.content.type in msgTypes
       }),
       pull.take(20),
-      pull.asyncMap(renderUpdate)
+      pull.asyncMap(function (msg, cb) {
+        switch (msg.value.content.type) {
+          case 'git-repo': return renderRepoCreated(msg, cb)
+          case 'git-update': return renderUpdate(msg, cb)
+        }
+      })
     )
   }
 
-  /*
   function renderRepoCreated(msg, cb) {
     var repoLink = link([msg.key])
     var authorLink = link([msg.value.author])
     cb(null, '<p>' + timestamp(msg.value.timestamp) + '<br>' +
       authorLink + ' created repo ' + repoLink + '</p>')
   }
-  */
 
   function renderUpdate(msg, cb) {
     about.getName(msg.value.author, function (err, name) {
