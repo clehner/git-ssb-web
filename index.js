@@ -8,6 +8,7 @@ var cat = require('pull-cat')
 var Repo = require('pull-git-repo')
 var ssbAbout = require('./about')
 var marked = require('ssb-marked')
+var asyncMemo = require('./async-memo')
 
 marked.setOptions({
   gfm: true,
@@ -105,7 +106,7 @@ var refLabels = {
 }
 
 module.exports = function (listenAddr, cb) {
-  var ssb, reconnect, myId
+  var ssb, reconnect, myId, getRepo
   var about = function (id, cb) { cb(null, {name: id}) }
 
   var addr = parseAddr(listenAddr, {host: 'localhost', port: 7718})
@@ -118,6 +119,9 @@ module.exports = function (listenAddr, cb) {
       ssb.whoami(function (err, feed) {
         myId = feed.id
         about = ssbAbout(ssb, ssb.id)
+      })
+      getRepo = asyncMemo(function (id, cb) {
+        ssbGit.getRepo(ssb, id, {live: true}, cb)
       })
     }
   }
@@ -288,7 +292,7 @@ module.exports = function (listenAddr, cb) {
   function serveRepoPage(id, path) {
     var defaultBranch = 'master'
     return readNext(function (cb) {
-      ssbGit.getRepo(ssb, id, function (err, repo) {
+      getRepo(id, function (err, repo) {
         if (err) {
           if (0)
             cb(null, serveRepoNotFound(id, err))
