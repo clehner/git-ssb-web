@@ -6,6 +6,7 @@ var ssbGit = require('ssb-git-repo')
 var toPull = require('stream-to-pull-stream')
 var cat = require('pull-cat')
 var Repo = require('pull-git-repo')
+var ssbAbout = require('./about')
 
 function parseAddr(str, def) {
   if (!str) return def
@@ -82,7 +83,8 @@ var refLabels = {
 }
 
 module.exports = function (listenAddr, cb) {
-  var ssb, reconnect
+  var ssb, reconnect, myId
+  var about = function (id, cb) { cb(null, {name: id}) }
 
   var addr = parseAddr(listenAddr, {host: 'localhost', port: 7718})
   http.createServer(onRequest).listen(addr.port, addr.host, onListening)
@@ -91,6 +93,10 @@ module.exports = function (listenAddr, cb) {
     setSSB: function (_ssb, _reconnect) {
       ssb = _ssb
       reconnect = _reconnect
+      ssb.whoami(function (err, feed) {
+        myId = feed.id
+        about = ssbAbout(ssb, ssb.id)
+      })
     }
   }
 
@@ -191,27 +197,30 @@ module.exports = function (listenAddr, cb) {
       pull.filter(function (msg) {
         return msg.value.content.type in msgTypes
       }),
-      pull.map(function (msg) {
+      pull.asyncMap(function (msg, cb) {
         switch (msg.value.content.type) {
-          case 'git-repo': return renderRepoCreated(msg)
-          case 'git-update': return renderUpdate(msg)
+          case 'git-repo': return renderRepoCreated(msg, cb)
+          case 'git-update': return renderUpdate(msg, cb)
         }
       })
     )
   }
 
-  function renderRepoCreated(msg) {
+  function renderRepoCreated(msg, cb) {
     var repoLink = link([msg.key])
     var authorLink = link([msg.value.author])
-    return '<p>' + timestamp(msg.value.timestamp) + '<br>' +
-      authorLink + ' created repo ' + repoLink + '</p>'
+    cb(null, '<p>' + timestamp(msg.value.timestamp) + '<br>' +
+      authorLink + ' created repo ' + repoLink + '</p>')
   }
 
-  function renderUpdate(msg) {
-    var repoLink = link([msg.value.content.repo])
-    var authorLink = link([msg.value.author])
-    return '<p>' + timestamp(msg.value.timestamp) + '<br>' +
-      authorLink + ' pushed to ' + repoLink + '</p>'
+  function renderUpdate(msg, cb) {
+    about.getName(msg.value.author, function (err, name) {
+      if (err) return cb(err)
+      var repoLink = link([msg.value.content.repo])
+      var authorLink = link([msg.value.author], name)
+      cb(null, '<p>' + timestamp(msg.value.timestamp) + '<br>' +
+        authorLink + ' pushed to ' + repoLink + '</p>')
+    })
   }
 
   /* Index */
@@ -240,8 +249,13 @@ module.exports = function (listenAddr, cb) {
         '<!doctype html><html><head><meta charset=utf-8>',
         '<title>git ssb</title></head><body>',
         '<h1><a href="/">git ssb</a></h1>',
-        '<h2>' + feedId + '</h2>',
       ]),
+      readOnce(function (cb) {
+        about.getName(feedId, function (err, name) {
+          cb(null, '<h2>' + link([feedId], name) + '</h2>' +
+          '<p><small><code>' + feedId + '</code></small></p>')
+        })
+      }),
       renderFeed(feedId),
       pull.once('</body></html>')
     ])
@@ -313,13 +327,18 @@ module.exports = function (listenAddr, cb) {
         '<title>git ssb</title></head><body>' +
         '<h1><a href="/">git ssb</a></h1>' +
         '<h2>' + link([repo.id]) + '</h2>' +
-        '<p>git URL: ' + gitLink + '</p>' +
-        '<p>Author: ' + link([repo.feed]) + '</p>' +
+        '<p>git URL: ' + gitLink + '</p>']),
+      readOnce(function (cb) {
+        about.getName(repo.feed, function (err, name) {
+          cb(null, '<p>Author: ' + link([repo.feed], name) + '</p>')
+        })
+      }),
+      pull.once(
         '<p>' + link([repo.id], 'Code') + ' ' +
           link([repo.id, 'activity'], 'Activity') + ' ' +
           link([repo.id, 'commits', branch], 'Commits') + '</p>' +
         '<hr/>'
-      ]),
+      ),
       renderTry(body),
       pull.once('<hr/></body></html>')
     ])
@@ -357,7 +376,6 @@ module.exports = function (listenAddr, cb) {
     ]))
 
     function renderRepoUpdate(msg) {
-      var authorLink = link([msg.value.author])
       var c = msg.value.content
 
       var refs = c.refs ? Object.keys(c.refs).map(function (ref) {
