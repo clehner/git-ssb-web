@@ -7,6 +7,18 @@ var toPull = require('stream-to-pull-stream')
 var cat = require('pull-cat')
 var Repo = require('pull-git-repo')
 var ssbAbout = require('./about')
+var marked = require('ssb-marked')
+
+marked.setOptions({
+  gfm: true,
+  mentions: true,
+  tables: true,
+  breaks: true,
+  pedantic: false,
+  sanitize: true,
+  smartLists: true,
+  smartypants: false
+})
 
 function parseAddr(str, def) {
   if (!str) return def
@@ -529,13 +541,22 @@ module.exports = function (listenAddr, cb) {
           repo.getObject(file.id, function (err, obj) {
             if (err) return cb(null, pull.empty())
             cb(null, cat([
-              pull.once('<h4>' + escapeHTML(file.name) + '</h4>' +
-                '<blockquote><pre>'),
-              pull(
-                obj.read,
-                escapeHTMLStream()
-              ),
-              pull.once('</pre></blockquote>')
+              pull.once('<h4>' + escapeHTML(file.name) + '</h4>'),
+              pull.once('<blockquote>'),
+              /\.md|\/.markdown/i.test(file.name) ?
+                readOnce(function (cb) {
+                  pull(obj.read, pull.collect(function (err, bufs) {
+                    if (err) return cb(err)
+                    var buf = Buffer.concat(bufs, obj.length)
+                    cb(null, marked(buf.toString()))
+                  }))
+                })
+              : cat([
+                pull.once('<pre>'),
+                pull(obj.read, escapeHTMLStream()),
+                pull.once('</pre>')
+              ]),
+              pull.once('</blockquote>')
             ]))
           })
         })
