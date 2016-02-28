@@ -1,6 +1,6 @@
 {
   "name": "git-ssb-web",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "web server for browsing git repos on ssb",
   "bin": "server.js",
   "dependencies": {
@@ -19,12 +19,10 @@
     "type": "git",
     "url": "https://github.com/clehner/git-ssb-web"
   },
-  "keywords": [
-  ],
+  "keywords": [],
   "author": "Charles Lehner (http://celehner.com/)",
   "license": "Fair",
   "bugs": {
     "url": "https://github.com/clehner/git-ssb-web/issues"
   }
 }
-
