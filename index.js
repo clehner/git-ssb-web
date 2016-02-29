@@ -1,4 +1,6 @@
+var fs = require('fs')
 var http = require('http')
+var path = require('path')
 var url = require('url')
 var ref = require('ssb-ref')
 var pull = require('pull-stream')
@@ -95,7 +97,20 @@ function tryDecodeURIComponent(str) {
     return str
   }
 }
- 
+
+var hasOwnProp = Object.prototype.hasOwnProperty
+
+function getContentType(filename) {
+  var ext = filename.split('.').pop()
+  return hasOwnProp.call(contentTypes, ext)
+    ? contentTypes[ext]
+    : 'text/plain'
+}
+
+var contentTypes = {
+  css: 'text/css'
+}
+
 var msgTypes = {
   'git-repo': true,
   'git-update': true
@@ -151,11 +166,14 @@ module.exports = function (listenAddr, cb) {
 
   function handleRequest(req) {
     var u = url.parse(req.url)
-    var dirs = u.pathname.slice(1).split(/\/+/).map(tryDecodeURIComponent)
+    var dirs = u.pathname.slice(1).split(/\/+/)
     switch (dirs[0]) {
       case '':
         return serveIndex(req)
+      case 'static':
+        return serveFile(req, dirs)
       default:
+        dirs = dirs.map(tryDecodeURIComponent)
         if (ref.isMsgId(dirs[0]))
           return serveRepoPage(dirs[0], dirs.slice(1))
         else if (ref.isFeedId(dirs[0]))
@@ -165,15 +183,39 @@ module.exports = function (listenAddr, cb) {
     }
   }
 
-  function serve404(req) {
-    var body = '404 Not Found'
+  function serveFile(req, dirs) {
+    var filename = path.join.apply(path, [__dirname].concat(dirs))
+    return readNext(function (cb) {
+      fs.stat(filename, function (err, stats) {
+        cb(null, err ?
+          err.code == 'ENOENT' ? serve404(req)
+          : servePlainError(500, err.message)
+        : stats.isDirectory() ?
+          servePlainError(403, 'Directory not listable')
+        : cat([
+          pull.once([200, {
+            'Content-Type': getContentType(filename),
+            'Content-Length': stats.size,
+            'Last-Modified': stats.mtime.toGMTString()
+          }]),
+          toPull(fs.createReadStream(filename))
+        ]))
+      })
+    })
+  }
+
+  function servePlainError(code, msg) {
     return pull.values([
-      [404, {
-        'Content-Length': body.length,
+      [code, {
+        'Content-Length': msg.length,
         'Content-Type': 'text/plain'
       }],
-      body
+      msg
     ])
+  }
+
+  function serve404(req) {
+    return servePlainError(404, '404 Not Found')
   }
 
   function renderTry(read) {
@@ -194,20 +236,33 @@ module.exports = function (listenAddr, cb) {
     }
   }
 
+  function serveTemplate(title, code, read) {
+    if (read === undefined) return serveTemplate.bind(this, title, code)
+    return cat([
+      pull.values([
+        [code || 200, {
+          'Content-Type': 'text/html'
+        }],
+        '<!doctype html><html><head><meta charset=utf-8>',
+        '<title>' + escapeHTML(title || 'git ssb') + '</title>',
+        '<link rel=stylesheet href="/static/styles.css?' + Math.random() + '"/>',
+        '</head>\n',
+        '<body>',
+        '<h1><a href="/">git ssb</a></h1>']),
+      renderTry(read),
+      pull.once('</body></html>')
+    ])
+  }
+
   function serveError(id, err) {
     if (err.message == 'stream is closed')
       reconnect()
-    return pull.values([
-      [500, {
-        'Content-Type': 'text/html'
-      }],
-      '<!doctype html><html><head><meta charset=utf-8>',
-      '<title>' + err.name + '</title></head><body>',
-      '<h1><a href="/">git ssb</a></h1>',
-      '<h2>' + err.name + '</h3>' +
-      '<pre>' + escapeHTML(err.stack) + '</pre>' +
-      '</body></html>'
-    ])
+    return pull(
+      pull.once(
+        '<h2>' + err.name + '</h3>' +
+        '<pre>' + escapeHTML(err.stack) + '</pre>'),
+      serveTemplate(err.name, 500)
+    )
   }
 
   /* Feed */
@@ -252,30 +307,11 @@ module.exports = function (listenAddr, cb) {
   /* Index */
 
   function serveIndex() {
-    return cat([
-      pull.values([
-        [200, {
-          'Content-Type': 'text/html'
-        }],
-        '<!doctype html><html><head><meta charset=utf-8>',
-        '<title>git ssb</title></head><body>',
-        '<h1><a href="/">git ssb</a></h1>'
-      ]),
-      renderTry(renderFeed()),
-      pull.once('</body></html>')
-    ])
+    return serveTemplate('git ssb')(renderFeed())
   }
 
   function serveUserPage(feedId) {
-    return cat([
-      pull.values([
-        [200, {
-          'Content-Type': 'text/html'
-        }],
-        '<!doctype html><html><head><meta charset=utf-8>',
-        '<title>git ssb</title></head><body>',
-        '<h1><a href="/">git ssb</a></h1>',
-      ]),
+    return serveTemplate(feedId)(cat([
       readOnce(function (cb) {
         about.getName(feedId, function (err, name) {
           cb(null, '<h2>' + link([feedId], name) + '</h2>' +
@@ -283,8 +319,7 @@ module.exports = function (listenAddr, cb) {
         })
       }),
       renderFeed(feedId),
-      pull.once('</body></html>')
-    ])
+    ]))
   }
 
   /* Repo */
@@ -326,32 +361,19 @@ module.exports = function (listenAddr, cb) {
   }
 
   function serveRepoNotFound(id, err) {
-    return pull.values([
-      [404, {
-        'Content-Type': 'text/html'
-      }],
-      '<!doctype html><html><head><meta charset=utf-8>',
-      '<title>Repo not found</title></head><body>',
-      '<h1><a href="/">git ssb</a></h1>',
+    return serveTemplate('Repo not found', 404, pull.values([
       '<h2>Repo not found</h2>',
       '<p>Repo ' + id + ' was not found</p>',
       '<pre>' + escapeHTML(err.stack) + '</pre>',
-      '</body></html>'
-    ])
+    ]))
   }
 
   function renderRepoPage(repo, branch, body) {
     var gitUrl = 'ssb://' + repo.id
     var gitLink = '<code>' + gitUrl + '</code>'
 
-    return cat([
+    return serveTemplate(repo.id)(cat([
       pull.values([
-        [200, {
-          'Content-Type': 'text/html'
-        }],
-        '<!doctype html><html><head><meta charset=utf-8>' +
-        '<title>git ssb</title></head><body>' +
-        '<h1><a href="/">git ssb</a></h1>' +
         '<h2>' + link([repo.id]) + '</h2>' +
         '<p>git URL: ' + gitLink + '</p>']),
       readOnce(function (cb) {
@@ -365,9 +387,8 @@ module.exports = function (listenAddr, cb) {
           link([repo.id, 'commits', branch], 'Commits') + '</p>' +
         '<hr/>'
       ),
-      renderTry(body),
-      pull.once('<hr/></body></html>')
-    ])
+      body
+    ]))
   }
 
   function serveRepoTree(repo, rev, path) {
@@ -611,18 +632,11 @@ module.exports = function (listenAddr, cb) {
   }
 
   function serveBlobNotFound(repoId, err) {
-    return pull.values([
-      [404, {
-        'Content-Type': 'text/html'
-      }],
-      '<!doctype html><html><head><meta charset=utf-8>',
-      '<title>Blob not found</title></head><body>',
-      '<h1><a href="/">git ssb</a></h1>',
+    return serveTemplate(400, 'Blob not found', pull.values([
       '<h2>Blob not found</h2>',
       '<p>Blob in repo ' + link([repoId]) + ' was not found</p>',
-      '<pre>' + escapeHTML(err.stack) + '</pre>',
-      '</body></html>'
-    ])
+      '<pre>' + escapeHTML(err.stack) + '</pre>'
+    ]))
   }
 
   function serveObjectRaw(object) {
