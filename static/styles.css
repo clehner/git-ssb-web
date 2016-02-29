@@ -60,6 +60,30 @@ hr {
 
 /* repo page */
 
+.repo-title h2 {
+  color: #888;
+}
+
+.upvotes {
+  float: right;
+  display: inline-block;
+  margin-top: .25em;
+}
+
+.upvotes button {
+  font-size: 1em;
+  border-radius: .5ex;
+
+  background-color: white;
+  border: 1px #ccc;
+  border-style: none solid solid none;
+  border-radius: .5ex;
+  cursor: pointer;
+}
+.upvotes button:hover {
+  background-color: #f6f6f6;
+}
+
 .clone-url {
   color: #666;
   padding: .3em 1ex;
@@ -72,10 +96,6 @@ hr {
 }
 .clone-url:hover {
   background-color: #f6f6f6;
-}
-
-.repo-name {
-  color: #888;
 }
 
 .repo-nav {

@@ -2,6 +2,7 @@ var fs = require('fs')
 var http = require('http')
 var path = require('path')
 var url = require('url')
+var qs = require('querystring')
 var ref = require('ssb-ref')
 var pull = require('pull-stream')
 var ssbGit = require('ssb-git-repo')
@@ -9,9 +10,11 @@ var toPull = require('stream-to-pull-stream')
 var cat = require('pull-cat')
 var Repo = require('pull-git-repo')
 var ssbAbout = require('./about')
+var ssbVotes = require('./votes')
 var marked = require('ssb-marked')
 var asyncMemo = require('./async-memo')
 var multicb = require('multicb')
+var schemas = require('ssb-msg-schemas')
 
 marked.setOptions({
   gfm: true,
@@ -117,6 +120,22 @@ var contentTypes = {
   css: 'text/css'
 }
 
+function readReqJSON(req, cb) {
+  pull(
+    toPull(req),
+    pull.collect(function (err, bufs) {
+      if (err) return cb(err)
+      var data
+      try {
+        data = qs.parse(Buffer.concat(bufs).toString('ascii'))
+      } catch(e) {
+        return cb(e)
+      }
+      cb(null, data)
+    })
+  )
+}
+
 var msgTypes = {
   'git-repo': true,
   'git-update': true
@@ -127,22 +146,27 @@ var refLabels = {
 }
 
 module.exports = function (listenAddr, cb) {
-  var ssb, reconnect, myId, getRepo
+  var ssb, reconnect, myId, getRepo, getVotes
   var about = function (id, cb) { cb(null, {name: id}) }
+  var reqQueue = []
 
   var addr = parseAddr(listenAddr, {host: 'localhost', port: 7718})
   http.createServer(onRequest).listen(addr.port, addr.host, onListening)
 
   var server = {
     setSSB: function (_ssb, _reconnect) {
-      ssb = _ssb
-      reconnect = _reconnect
-      ssb.whoami(function (err, feed) {
+      _ssb.whoami(function (err, feed) {
+        if (err) throw err
+        ssb = _ssb
+        reconnect = _reconnect
         myId = feed.id
-        about = ssbAbout(ssb, ssb.id)
-      })
-      getRepo = asyncMemo(function (id, cb) {
-        ssbGit.getRepo(ssb, id, {live: true}, cb)
+        about = ssbAbout(ssb, myId)
+        while (reqQueue.length)
+          onRequest.apply(this, reqQueue.shift())
+        getRepo = asyncMemo(function (id, cb) {
+          ssbGit.getRepo(ssb, id, {live: true}, cb)
+        })
+        getVotes = ssbVotes(ssb)
       })
     }
   }
@@ -157,6 +181,7 @@ module.exports = function (listenAddr, cb) {
 
   function onRequest(req, res) {
     console.log(req.method, req.url)
+    if (!ssb) return reqQueue.push(arguments)
     pull(
       handleRequest(req),
       pull.filter(function (data) {
@@ -181,7 +206,7 @@ module.exports = function (listenAddr, cb) {
       default:
         dirs = dirs.map(tryDecodeURIComponent)
         if (ref.isMsgId(dirs[0]))
-          return serveRepoPage(dirs[0], dirs.slice(1))
+          return serveRepoPage(req, dirs[0], dirs.slice(1))
         else if (ref.isFeedId(dirs[0]))
           return serveUserPage(dirs[0])
         else
@@ -222,6 +247,20 @@ module.exports = function (listenAddr, cb) {
 
   function serve404(req) {
     return servePlainError(404, '404 Not Found')
+  }
+
+  function serveRedirect(path) {
+    var msg = '<!doctype><html><head><meta charset=utf-8>' +
+      '<title>Redirect</title></head>' +
+      '<body><p><a href="' + path + '">Continue</a></p></body></html>'
+    return pull.values([
+      [302, {
+        'Content-Length': msg.length,
+        'Content-Type': 'text/html',
+        Location: path
+      }],
+      msg
+    ])
   }
 
   function renderTry(read) {
@@ -333,7 +372,7 @@ module.exports = function (listenAddr, cb) {
 
   /* Repo */
 
-  function serveRepoPage(id, path) {
+  function serveRepoPage(req, id, path) {
     var defaultBranch = 'master'
     return readNext(function (cb) {
       getRepo(id, function (err, repo) {
@@ -345,6 +384,21 @@ module.exports = function (listenAddr, cb) {
           return
         }
         repo = Repo(repo)
+
+        if (req.method == 'POST') {
+          return readReqJSON(req, function (err, data) {
+            if (data && data.vote != null) {
+              var voteValue = +data.vote || 0
+              ssb.publish(schemas.vote(repo.id, voteValue), function (err) {
+                if (err) return cb(null, serveError(err))
+                cb(null, serveRedirect(req.url))
+              })
+            } else {
+              cb(null, servePlainError(400, 'What are you trying to do?'))
+            }
+          })
+        }
+
         cb(null, (function () {
           var branch = path[1] || defaultBranch
           var filePath = path.slice(2)
@@ -386,15 +440,24 @@ module.exports = function (listenAddr, cb) {
     var done = multicb({ pluck: 1, spread: true })
     getRepoName(repo.id, done())
     about.getName(repo.feed, done())
+    getVotes(repo.id, done())
 
     return readNext(function (cb) {
-      done(function (err, repoName, authorName) {
+      done(function (err, repoName, authorName, votes) {
         if (err) return cb(null, serveError(err))
+        var upvoted = votes.upvoters[myId] > 0
         cb(null, serveTemplate(repo.id)(cat([
           pull.once(
-            '<h2 class="repo-name">' + link([repo.feed], authorName) + ' / ' +
+            '<div class="repo-title">' +
+            '<form class="upvotes" action="" method="post">' +
+              '<input type="hidden" name="vote" value="' +
+                (upvoted ? '0' : '1') + '">' +
+              '<button type="submit">✌ ' + (upvoted ? 'Undig' : 'Dig') +
+              '</button> <strong>' + votes.upvotes + '</strong>' +
+            '</form>' +
+            '<h2>' + link([repo.feed], authorName) + ' / ' +
               link([repo.id], repoName) + '</h2>' +
-            '<div class="repo-nav">' + link([repo.id], 'Code') +
+            '</div><div class="repo-nav">' + link([repo.id], 'Code') +
               link([repo.id, 'activity'], 'Activity') +
               link([repo.id, 'commits', branch], 'Commits') +
               gitLink +
