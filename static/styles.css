@@ -118,6 +118,10 @@ hr {
   margin: 1ex 0;
 }
 
+.file-tree {
+  list-style-type: circle;
+}
+
 /* user page */
 
 .user-id {

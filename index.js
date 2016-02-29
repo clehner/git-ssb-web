@@ -626,7 +626,7 @@ module.exports = function (opts, cb) {
           var type = (file.mode === 040000) ? 'tree' : 'blob'
           var filePath = [repo.id, type, rev].concat(path, file.name)
           var fileName = (type == 'tree') ? file.name + '/' : file.name
-          return '<li>' + link(filePath, fileName) + '</li>'
+          return '<li class="file-' + type + '">' + link(filePath, fileName) + '</li>'
         })
       ),
       pull.once('</ul>')
