@@ -1,4 +1,110 @@
 body {
-  max-width: 40em;
+  margin: 1ex 1em;
+  line-height: 1.6;
+  background-color: #eee;
+  font-family: sans-serif;
+}
+
+/* header */
+
+header {
+  max-width: 45em;
   margin: 0 auto;
+}
+
+header h1 {
+  font-weight: inherit;
+  font-size: 1.5em;
+}
+
+header h1 a {
+  color: #666;
+}
+
+/* content */
+
+article {
+  max-width: 45em;
+  margin: 0 auto;
+}
+
+section {
+  background-color: white;
+  padding: 1ex 1ex;
+  margin-bottom: 1ex;
+  border-radius: .5ex;
+  border: 1px #ccc;
+  border-style: none solid solid none;
+}
+
+section.collapse {
+  margin-bottom: 0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+}
+
+a {
+  color: #006eff;
+  text-decoration: none;
+}
+a:hover {
+  color: #1f8fff;
+}
+
+hr {
+  border: 0;
+  border-bottom: 1px solid #ddd;
+}
+
+/* repo page */
+
+.clone-url {
+  color: #666;
+  padding: .3em 1ex;
+  background-color: white;
+  border: 1px #ccc;
+  border-style: none solid solid none;
+  border-radius: .5ex;
+  float: right;
+  margin: 0;
+}
+.clone-url:hover {
+  background-color: #f6f6f6;
+}
+
+.repo-name {
+  color: #888;
+}
+
+.repo-nav {
+  margin: 1em 0 1ex 0;
+}
+
+.repo-nav a {
+  border-radius: .5ex;
+  padding: 0 .5ex;
+  display: inline-block;
+  margin-right: .5ex;
+}
+.repo-nav a:hover {
+  color: #1a86ff;
+}
+
+/* files list */
+
+.files {
+  margin: 1ex 0;
+}
+
+/* user page */
+
+.user-id {
+  float: right;
+  font-size: 16px;
+  font-weight: normal;
+  display: inline-block;
+  margin: 0;
+  padding-top: .5em;
 }

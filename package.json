@@ -4,6 +4,7 @@
   "description": "web server for browsing git repos on ssb",
   "bin": "server.js",
   "dependencies": {
+    "multicb": "^1.2.1",
     "pull-cat": "^1.1.8",
     "pull-git-repo": "^0.2.0",
     "pull-stream": "^3.1.0",

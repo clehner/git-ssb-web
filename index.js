@@ -11,6 +11,7 @@ var Repo = require('pull-git-repo')
 var ssbAbout = require('./about')
 var marked = require('ssb-marked')
 var asyncMemo = require('./async-memo')
+var multicb = require('multicb')
 
 marked.setOptions({
   gfm: true,
@@ -96,6 +97,11 @@ function tryDecodeURIComponent(str) {
   } finally {
     return str
   }
+}
+
+function getRepoName(repoId, cb) {
+  // TODO: use petnames
+  cb(null, repoId.substr(0, 20) + '…')
 }
 
 var hasOwnProp = Object.prototype.hasOwnProperty
@@ -248,13 +254,16 @@ module.exports = function (listenAddr, cb) {
         '<link rel=stylesheet href="/static/styles.css?' + Math.random() + '"/>',
         '</head>\n',
         '<body>',
-        '<h1><a href="/">git ssb</a></h1>']),
+        '<header>',
+        '<h1><a href="/">git ssb</a></h1>',
+        '</header>',
+        '<article>']),
       renderTry(read),
-      pull.once('</body></html>')
+      pull.once('</article></body></html>')
     ])
   }
 
-  function serveError(id, err) {
+  function serveError(err) {
     if (err.message == 'stream is closed')
       reconnect()
     return pull(
@@ -293,15 +302,15 @@ module.exports = function (listenAddr, cb) {
   function renderRepoCreated(msg, authorName, cb) {
     var repoLink = link([msg.key])
     var authorLink = link([msg.value.author], authorName)
-    cb(null, '<p>' + timestamp(msg.value.timestamp) + '<br>' +
-      authorLink + ' created repo ' + repoLink + '</p>')
+    cb(null, '<section class="collapse">' + timestamp(msg.value.timestamp) + '<br>' +
+      authorLink + ' created repo ' + repoLink + '</section>')
   }
 
   function renderUpdate(msg, authorName, cb) {
     var repoLink = link([msg.value.content.repo])
     var authorLink = link([msg.value.author], authorName)
-    cb(null, '<p>' + timestamp(msg.value.timestamp) + '<br>' +
-      authorLink + ' pushed to ' + repoLink + '</p>')
+    cb(null, '<section class="collapse">' + timestamp(msg.value.timestamp) + '<br>' +
+      authorLink + ' pushed to ' + repoLink + '</section>')
   }
 
   /* Index */
@@ -314,8 +323,8 @@ module.exports = function (listenAddr, cb) {
     return serveTemplate(feedId)(cat([
       readOnce(function (cb) {
         about.getName(feedId, function (err, name) {
-          cb(null, '<h2>' + link([feedId], name) + '</h2>' +
-          '<p><small><code>' + feedId + '</code></small></p>')
+          cb(null, '<h2>' + link([feedId], name) +
+          '<code class="user-id">' + feedId + '</code></h2>')
         })
       }),
       renderFeed(feedId),
@@ -332,7 +341,7 @@ module.exports = function (listenAddr, cb) {
           if (0)
             cb(null, serveRepoNotFound(id, err))
           else
-            cb(null, serveError(id, err))
+            cb(null, serveError(err))
           return
         }
         repo = Repo(repo)
@@ -370,36 +379,43 @@ module.exports = function (listenAddr, cb) {
 
   function renderRepoPage(repo, branch, body) {
     var gitUrl = 'ssb://' + repo.id
-    var gitLink = '<code>' + gitUrl + '</code>'
+    var gitLink = '<input class="clone-url" readonly="readonly" ' +
+      'value="' + gitUrl + '" size="' + gitUrl.length + '" ' +
+      'onclick="this.select()"/>'
 
-    return serveTemplate(repo.id)(cat([
-      pull.values([
-        '<h2>' + link([repo.id]) + '</h2>' +
-        '<p>git URL: ' + gitLink + '</p>']),
-      readOnce(function (cb) {
-        about.getName(repo.feed, function (err, name) {
-          cb(null, '<p>Author: ' + link([repo.feed], name) + '</p>')
-        })
-      }),
-      pull.once(
-        '<p>' + link([repo.id], 'Code') + ' ' +
-          link([repo.id, 'activity'], 'Activity') + ' ' +
-          link([repo.id, 'commits', branch], 'Commits') + '</p>' +
-        '<hr/>'
-      ),
-      body
-    ]))
+    var done = multicb({ pluck: 1, spread: true })
+    getRepoName(repo.id, done())
+    about.getName(repo.feed, done())
+
+    return readNext(function (cb) {
+      done(function (err, repoName, authorName) {
+        if (err) return cb(null, serveError(err))
+        cb(null, serveTemplate(repo.id)(cat([
+          pull.once(
+            '<h2 class="repo-name">' + link([repo.feed], authorName) + ' / ' +
+              link([repo.id], repoName) + '</h2>' +
+            '<div class="repo-nav">' + link([repo.id], 'Code') +
+              link([repo.id, 'activity'], 'Activity') +
+              link([repo.id, 'commits', branch], 'Commits') +
+              gitLink +
+            '</div>'),
+          body
+        ])))
+      })
+    })
   }
 
   function serveRepoTree(repo, rev, path) {
     var type = repo.isCommitHash(rev) ? 'Tree' : 'Branch'
     return renderRepoPage(repo, rev, cat([
-      pull.once('<h3>' + type + ': ' + rev + ' '),
+      pull.once('<section><h3>' + type + ': ' + rev + ' '),
       revMenu(repo, rev),
       pull.once('</h3>'),
       type == 'Branch' && renderRepoLatest(repo, rev),
+      pull.once('</section><section>'),
       renderRepoTree(repo, rev, path),
-      renderRepoReadme(repo, rev, path),
+      pull.once('</section>'),
+      renderRepoReadme(repo, rev, path)
     ]))
   }
 
@@ -430,7 +446,7 @@ module.exports = function (listenAddr, cb) {
       }) : []
       var numObjects = c.objects ? Object.keys(c.objects).length : 0
 
-      return '<p>' + timestamp(msg.value.timestamp) + '<br>' +
+      return '<section class="collapse">' + timestamp(msg.value.timestamp) + '<br>' +
         (numObjects ? 'Pushed ' + numObjects + ' objects<br>' : '') +
         refs.map(function (update) {
           var name = escapeHTML(update.name)
@@ -441,7 +457,7 @@ module.exports = function (listenAddr, cb) {
             return name + ' &rarr; ' + commitLink
           }
         }).join('<br>') +
-        '</p>'
+        '</section>'
     }
   }
 
@@ -449,7 +465,7 @@ module.exports = function (listenAddr, cb) {
 
   function serveRepoCommits(repo, branch) {
     return renderRepoPage(repo, branch, cat([
-      pull.once('<h3>Commits</h3><ul>'),
+      pull.once('<h3>Commits</h3>'),
       pull(
         repo.readLog(branch),
         pull.asyncMap(function (hash, cb) {
@@ -457,17 +473,16 @@ module.exports = function (listenAddr, cb) {
             if (err) return cb(err)
             var commitPath = [repo.id, 'commit', commit.id]
             var treePath = [repo.id, 'tree', commit.id]
-            cb(null, '<li>' +
+            cb(null, '<section class="collapse">' +
               '<strong>' + link(commitPath, escapeHTML(commit.title)) + '</strong><br>' +
               '<code>' + commit.id + '</code> ' +
                 link(treePath, 'Tree') + '<br>' +
               (commit.separateAuthor ? escapeHTML(commit.author.name) + ' authored on ' + commit.author.date.toLocaleString() + '<br>' : '') +
               escapeHTML(commit.committer.name) + ' committed on ' + commit.committer.date.toLocaleString() +
-              '</li>')
+              '</section>')
           })
         })
-      ),
-      pull.once('</ul>')
+      )
     ]))
   }
 
@@ -509,7 +524,7 @@ module.exports = function (listenAddr, cb) {
       repo.getCommitParsed(rev, function (err, commit) {
         if (err) return cb(err)
         var commitPath = [repo.id, 'commit', commit.id]
-        cb(null, '<p>' +
+        cb(null,
           'Latest: <strong>' + link(commitPath, escapeHTML(commit.title)) +
           '</strong><br>' +
           '<code>' + commit.id + '</code><br> ' +
@@ -517,8 +532,7 @@ module.exports = function (listenAddr, cb) {
           commit.committer.date.toLocaleString() +
           (commit.separateAuthor ? '<br>' +
             escapeHTML(commit.author.name) + ' authored on ' +
-            commit.author.date.toLocaleString() : '') +
-        '</p>')
+            commit.author.date.toLocaleString() : ''))
       })
     })
   }
@@ -533,9 +547,11 @@ module.exports = function (listenAddr, cb) {
   }
 
   function renderRepoTree(repo, rev, path) {
-    var pathLinks = linkPath([repo.id, 'tree'], [rev].concat(path))
+    var pathLinks = path.length === 0 ? '' :
+      ': ' + linkPath([repo.id, 'tree'], [rev].concat(path))
     return cat([
-      pull.once('<h3>Files: ' + pathLinks + '</h3><ul>'),
+      pull.once('<h3>Files' + pathLinks + '</h3>' +
+        '<ul class="files">'),
       pull(
         repo.readDir(rev, path),
         pull.map(function (file) {
@@ -566,8 +582,7 @@ module.exports = function (listenAddr, cb) {
           repo.getObject(file.id, function (err, obj) {
             if (err) return cb(null, pull.empty())
             cb(null, cat([
-              pull.once('<h4>' + escapeHTML(file.name) + '</h4>'),
-              pull.once('<blockquote>'),
+              pull.once('<section><h4>' + escapeHTML(file.name) + '</h4><hr/>'),
               /\.md|\/.markdown/i.test(file.name) ?
                 readOnce(function (cb) {
                   pull(obj.read, pull.collect(function (err, bufs) {
@@ -581,7 +596,7 @@ module.exports = function (listenAddr, cb) {
                 pull(obj.read, escapeHTMLStream()),
                 pull.once('</pre>')
               ]),
-              pull.once('</blockquote>')
+              pull.once('</section>')
             ]))
           })
         })
