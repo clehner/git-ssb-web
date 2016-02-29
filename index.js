@@ -557,7 +557,8 @@ module.exports = function (listenAddr, cb) {
         pull.map(function (file) {
           var type = (file.mode === 040000) ? 'tree' : 'blob'
           var filePath = [repo.id, type, rev].concat(path, file.name)
-          return '<li>' + link(filePath) + '</li>'
+          var fileName = (type == 'tree') ? file.name + '/' : file.name
+          return '<li>' + link(filePath, fileName) + '</li>'
         })
       ),
       pull.once('</ul>')
