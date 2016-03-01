@@ -69,6 +69,23 @@ function escapeHTMLStream() {
   })
 }
 
+function table(props) {
+  return function (read) {
+    return cat([
+      pull.once('<table' + (props ? ' ' + props : '') + '>'),
+      pull(
+        read,
+        pull.map(function (row) {
+          return row ? '<tr>' + row.map(function (cell) {
+            return '<td>' + cell + '</td>'
+          }).join('') + '</tr>' : ''
+        })
+      ),
+      pull.once('</table>')
+    ])
+  }
+}
+
 function readNext(fn) {
   var next
   return function (end, cb) {
@@ -618,18 +635,16 @@ module.exports = function (opts, cb) {
     var pathLinks = path.length === 0 ? '' :
       ': ' + linkPath([repo.id, 'tree'], [rev].concat(path))
     return cat([
-      pull.once('<h3>Files' + pathLinks + '</h3>' +
-        '<ul class="files">'),
+      pull.once('<h3>Files' + pathLinks + '</h3>'),
       pull(
         repo.readDir(rev, path),
         pull.map(function (file) {
           var type = (file.mode === 040000) ? 'tree' : 'blob'
           var filePath = [repo.id, type, rev].concat(path, file.name)
-          var fileName = (type == 'tree') ? file.name + '/' : file.name
-          return '<li class="file-' + type + '">' + link(filePath, fileName) + '</li>'
-        })
-      ),
-      pull.once('</ul>')
+          return [type == 'tree' ? '📁' : '📄', link(filePath, file.name)]
+        }),
+        table('class="files"')
+      )
     ])
   }
 

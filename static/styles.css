@@ -114,12 +114,8 @@ hr {
 
 /* files list */
 
-.files {
-  margin: 1ex 0;
-}
-
-.file-tree {
-  list-style-type: circle;
+.files td:first-child {
+  padding: 0 1ex;
 }
 
 /* user page */
