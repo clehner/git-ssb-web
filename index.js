@@ -198,25 +198,20 @@ module.exports = function (opts, cb) {
 
   function handleRequest(req) {
     var u = url.parse(req.url)
-    var dirs = u.pathname.slice(1).split(/\/+/)
-    switch (dirs[0]) {
-      case '':
-        return serveIndex(req)
-      case 'static':
-        return serveFile(req, dirs)
-      default:
-        dirs = dirs.map(tryDecodeURIComponent)
-        if (ref.isMsgId(dirs[0]))
-          return serveRepoPage(req, dirs[0], dirs.slice(1))
-        else if (ref.isFeedId(dirs[0]))
-          return serveUserPage(dirs[0])
-        else
-          return serve404(req)
-    }
+    var dirs = u.pathname.slice(1).split(/\/+/).map(tryDecodeURIComponent)
+    var dir = dirs[0]
+    if (dir == '')
+      return serveIndex(req)
+    else if (ref.isMsgId(dir))
+      return serveRepoPage(req, dir, dirs.slice(1))
+    else if (ref.isFeedId(dir))
+      return serveUserPage(dir)
+    else
+      return serveFile(req, dirs)
   }
 
   function serveFile(req, dirs) {
-    var filename = path.join.apply(path, [__dirname].concat(dirs))
+    var filename = path.join.apply(path, [__dirname, 'static'].concat(dirs))
     return readNext(function (cb) {
       fs.stat(filename, function (err, stats) {
         cb(null, err ?
@@ -291,7 +286,7 @@ module.exports = function (opts, cb) {
         }],
         '<!doctype html><html><head><meta charset=utf-8>',
         '<title>' + escapeHTML(title || 'git ssb') + '</title>',
-        '<link rel=stylesheet href="/static/styles.css?' + Math.random() + '"/>',
+        '<link rel=stylesheet href="/styles.css"/>',
         '</head>\n',
         '<body>',
         '<header>',
