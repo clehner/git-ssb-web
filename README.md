@@ -17,9 +17,15 @@ npm install -g git-ssb
 ## Usage
 
 ```
-git-ssb-web [<host:port>]
+git-ssb-web [<options>] [<host:port>]
 ```
-host defaults to `localhost`. port defaults to `7718`.
+- `host`: hostname to listen on. defaults to `localhost`.
+- `port`: port to listen on. defaults to `7718`.
+
+Options:
+- `--public`: make the app read-only (e.g. disable making digs), to make it
+  suitable for serving publicly
+
 
 [secure-scuttlebutt]: https://github.com/ssbc/secure-scuttlebutt
 [git-ssb]: https://github.com/clehner/git-ssb

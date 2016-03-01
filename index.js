@@ -145,12 +145,13 @@ var refLabels = {
   heads: 'Branches'
 }
 
-module.exports = function (listenAddr, cb) {
+module.exports = function (opts, cb) {
   var ssb, reconnect, myId, getRepo, getVotes
   var about = function (id, cb) { cb(null, {name: id}) }
   var reqQueue = []
+  var isPublic = opts.public
 
-  var addr = parseAddr(listenAddr, {host: 'localhost', port: 7718})
+  var addr = parseAddr(opts.listenAddr, {host: 'localhost', port: 7718})
   http.createServer(onRequest).listen(addr.port, addr.host, onListening)
 
   var server = {
@@ -450,10 +451,13 @@ module.exports = function (listenAddr, cb) {
           pull.once(
             '<div class="repo-title">' +
             '<form class="upvotes" action="" method="post">' +
-              '<input type="hidden" name="vote" value="' +
-                (upvoted ? '0' : '1') + '">' +
-              '<button type="submit">✌ ' + (upvoted ? 'Undig' : 'Dig') +
-              '</button> <strong>' + votes.upvotes + '</strong>' +
+              (isPublic
+              ? '<button disabled="disabled">✌ Dig</button> '
+              : '<input type="hidden" name="vote" value="' +
+                  (upvoted ? '0' : '1') + '">' +
+                '<button type="submit">✌ ' + (upvoted ? 'Undig' : 'Dig') +
+              '</button>') +
+              '<strong>' + votes.upvotes + '</strong>' +
             '</form>' +
             '<h2>' + link([repo.feed], authorName) + ' / ' +
               link([repo.id], repoName) + '</h2>' +
