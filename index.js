@@ -120,6 +120,8 @@ var contentTypes = {
   css: 'text/css'
 }
 
+var staticBase = path.join(__dirname, 'static')
+
 function readReqJSON(req, cb) {
   pull(
     toPull(req),
@@ -211,7 +213,11 @@ module.exports = function (opts, cb) {
   }
 
   function serveFile(req, dirs) {
-    var filename = path.join.apply(path, [__dirname, 'static'].concat(dirs))
+    var filename = path.join.apply(path, [staticBase].concat(dirs))
+    // prevent escaping base dir
+    if (filename.indexOf(staticBase) !== 0)
+      return servePlainError(403, '403 Forbidden')
+
     return readNext(function (cb) {
       fs.stat(filename, function (err, stats) {
         cb(null, err ?
