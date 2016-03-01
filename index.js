@@ -257,7 +257,7 @@ module.exports = function (opts, cb) {
   function servePlainError(code, msg) {
     return pull.values([
       [code, {
-        'Content-Length': msg.length,
+        'Content-Length': Buffer.byteLength(msg),
         'Content-Type': 'text/plain'
       }],
       msg
@@ -274,7 +274,7 @@ module.exports = function (opts, cb) {
       '<body><p><a href="' + path + '">Continue</a></p></body></html>'
     return pull.values([
       [302, {
-        'Content-Length': msg.length,
+        'Content-Length': Buffer.byteLength(msg),
         'Content-Type': 'text/html',
         Location: path
       }],
