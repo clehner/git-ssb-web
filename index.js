@@ -193,7 +193,7 @@ module.exports = function (opts, cb) {
 
   function onListening() {
     var host = ~addr.host.indexOf(':') ? '[' + addr.host + ']' : addr.host
-    console.error('Listening on http://' + host + ':' + addr.port + '/')
+    console.log('Listening on http://' + host + ':' + addr.port + '/')
     cb(null, server)
   }
 
