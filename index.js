@@ -240,6 +240,9 @@ module.exports = function (opts, cb) {
         cb(null, err ?
           err.code == 'ENOENT' ? serve404(req)
           : servePlainError(500, err.message)
+        : 'if-modified-since' in req.headers &&
+          new Date(req.headers['if-modified-since']) <= stats.mtime ?
+          pull.once([304])
         : stats.isDirectory() ?
           servePlainError(403, 'Directory not listable')
         : cat([
@@ -742,7 +745,8 @@ module.exports = function (opts, cb) {
     return cat([
       pull.once([200, {
         'Content-Length': object.length,
-        'Content-Type': 'text/plain'
+        'Content-Type': 'text/plain',
+        'Cache-Control': 'max-age=31536000'
       }]),
       object.read
     ])
