@@ -9,7 +9,7 @@
 
 var pull = require('pull-stream')
 var cat = require('pull-cat')
-var asyncMemo = require('./async-memo')
+var asyncMemo = require('asyncmemo')
 
 module.exports = function (sbot, id) {
   var getAbout = asyncMemo(getAboutFull, sbot, id)

@@ -12,7 +12,7 @@ var Repo = require('pull-git-repo')
 var ssbAbout = require('./about')
 var ssbVotes = require('./votes')
 var marked = require('ssb-marked')
-var asyncMemo = require('./async-memo')
+var asyncMemo = require('asyncmemo')
 var multicb = require('multicb')
 var schemas = require('ssb-msg-schemas')
 

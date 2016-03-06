@@ -1,5 +1,5 @@
 var pull = require('pull-stream')
-var asyncMemo = require('./async-memo')
+var asyncMemo = require('asyncmemo')
 
 module.exports = function (sbot) {
   return asyncMemo(getVotes, sbot)
