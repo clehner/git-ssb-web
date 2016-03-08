@@ -247,7 +247,7 @@ module.exports = function (opts, cb) {
           err.code == 'ENOENT' ? serve404(req)
           : servePlainError(500, err.message)
         : 'if-modified-since' in req.headers &&
-          new Date(req.headers['if-modified-since']) <= stats.mtime ?
+          new Date(req.headers['if-modified-since']) >= stats.mtime ?
           pull.once([304])
         : stats.isDirectory() ?
           servePlainError(403, 'Directory not listable')
