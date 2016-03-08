@@ -165,7 +165,7 @@ var refLabels = {
 }
 
 module.exports = function (opts, cb) {
-  var ssb, reconnect, myId, getRepo, getVotes
+  var ssb, reconnect, myId, getRepo, getVotes, getMsg
   var about = function (id, cb) { cb(null, {name: id}) }
   var reqQueue = []
   var isPublic = opts.public
@@ -184,9 +184,13 @@ module.exports = function (opts, cb) {
         while (reqQueue.length)
           onRequest.apply(this, reqQueue.shift())
         getRepo = asyncMemo(function (id, cb) {
-          ssbGit.getRepo(ssb, id, {live: true}, cb)
+          getMsg(id, function (err, msg) {
+            if (err) return cb(err)
+            ssbGit.getRepo(ssb, {key: id, value: msg}, {live: true}, cb)
+          })
         })
         getVotes = ssbVotes(ssb)
+        getMsg = asyncMemo(ssb.get)
       })
     }
   }
@@ -222,7 +226,7 @@ module.exports = function (opts, cb) {
     if (dir == '')
       return serveIndex(req)
     else if (ref.isMsgId(dir))
-      return serveRepoPage(req, dir, dirs.slice(1))
+      return serveMessage(req, dir, dirs.slice(1))
     else if (ref.isFeedId(dir))
       return serveUserPage(dir)
     else
@@ -392,57 +396,83 @@ module.exports = function (opts, cb) {
     ]))
   }
 
-  /* Repo */
+  /* Message */
 
-  function serveRepoPage(req, id, path) {
-    var defaultBranch = 'master'
+  function serveMessage(req, id, path) {
     return readNext(function (cb) {
-      getRepo(id, function (err, repo) {
-        if (err) {
-          if (0)
-            cb(null, serveRepoNotFound(id, err))
-          else
-            cb(null, serveError(err))
-          return
-        }
-        repo = Repo(repo)
-
-        if (req.method == 'POST') {
-          return readReqJSON(req, function (err, data) {
-            if (data && data.vote != null) {
-              var voteValue = +data.vote || 0
-              ssb.publish(schemas.vote(repo.id, voteValue), function (err) {
-                if (err) return cb(null, serveError(err))
-                cb(null, serveRedirect(req.url))
+      ssb.get(id, function (err, msg) {
+        if (err) return cb(null, serveError(err))
+        var c = msg.content || {}
+        switch (c.type) {
+          case 'git-repo':
+            return getRepo(id, function (err, repo) {
+              if (err) return cb(null, serveError(err))
+              cb(null, serveRepoPage(req, Repo(repo), path))
+            })
+          case 'git-update':
+            return getRepo(c.repo, function (err, repo) {
+              if (err) return cb(null, serveRepoNotFound(repo.id, err))
+              cb(null, serveRepoUpdate(req, Repo(repo), id, msg, path))
+            })
+          default:
+            if (ref.isMsgId(c.repo))
+              return getRepo(c.repo, function (err, repo) {
+                if (err) return cb(null, serveRepoNotFound(repo.id, err))
+                cb(null, serveRepoSomething(req, Repo(repo), id, msg, path))
               })
-            } else {
-              cb(null, servePlainError(400, 'What are you trying to do?'))
-            }
-          })
+            else
+              return cb(null, serveGenericMessage(req, id, msg, path))
         }
-
-        cb(null, (function () {
-          var branch = path[1] || defaultBranch
-          var filePath = path.slice(2)
-          switch (path[0]) {
-            case undefined:
-              return serveRepoTree(repo, branch, [])
-            case 'activity':
-              return serveRepoActivity(repo, branch)
-            case 'commits':
-              return serveRepoCommits(repo, branch)
-            case 'commit':
-              return serveRepoCommit(repo, path[1])
-            case 'tree':
-              return serveRepoTree(repo, branch, filePath)
-            case 'blob':
-              return serveBlob(repo, branch, filePath)
-            default:
-              return serve404(req)
-          }
-        })())
       })
     })
+  }
+
+  function serveGenericMessage(req, id, msg, path) {
+    return serveTemplate(id)(pull.once(
+      '<section><h2>' + link([id]) + '</h2>' +
+      json(msg) +
+      '</section>'))
+  }
+
+  /* Repo */
+
+  function serveRepoPage(req, repo, path) {
+    var defaultBranch = 'master'
+
+    if (req.method == 'POST') {
+      return readNext(function (cb) {
+        readReqJSON(req, function (err, data) {
+          if (data && data.vote != null) {
+            var voteValue = +data.vote || 0
+            ssb.publish(schemas.vote(repo.id, voteValue), function (err) {
+              if (err) return cb(null, serveError(err))
+              cb(null, serveRedirect(req.url))
+            })
+          } else {
+            cb(null, servePlainError(400, 'What are you trying to do?'))
+          }
+        })
+      })
+    }
+
+    var branch = path[1] || defaultBranch
+    var filePath = path.slice(2)
+    switch (path[0]) {
+      case undefined:
+        return serveRepoTree(repo, branch, [])
+      case 'activity':
+        return serveRepoActivity(repo, branch)
+      case 'commits':
+        return serveRepoCommits(repo, branch)
+      case 'commit':
+        return serveRepoCommit(repo, path[1])
+      case 'tree':
+        return serveRepoTree(repo, branch, filePath)
+      case 'blob':
+        return serveBlob(repo, branch, filePath)
+      default:
+        return serve404(req)
+    }
   }
 
   function serveRepoNotFound(id, err) {
@@ -484,7 +514,7 @@ module.exports = function (opts, cb) {
               link([repo.id], repoName) + '</h2>' +
             '</div><div class="repo-nav">' + link([repo.id], 'Code') +
               link([repo.id, 'activity'], 'Activity') +
-              link([repo.id, 'commits', branch], 'Commits') +
+              link([repo.id, 'commits', branch || ''], 'Commits') +
               gitLink +
             '</div>'),
           body
@@ -719,6 +749,29 @@ module.exports = function (opts, cb) {
             '</p>')
         })
       })
+    ]))
+  }
+
+  /* An unknown message linking to a repo */
+
+  function serveRepoSomething(req, repo, id, msg, path) {
+    return renderRepoPage(repo, null,
+      pull.once('<section><h3>' + link([id]) + '</h3>' +
+        json(msg) + '</section>'))
+  }
+
+  /* Repo update */
+
+  function serveRepoUpdate(req, repo, id, msg, path) {
+    return renderRepoPage(repo, null, cat([
+      pull.once('<section><h3>' + link([id]) + '</h3>'),
+      readOnce(function (cb) {
+        about.getName(msg.author, function (err, name) {
+          if (err) return cb(err)
+          renderUpdate({key: id, value: msg}, name, cb)
+        })
+      }),
+      pull.once('</section>')
     ]))
   }
 
