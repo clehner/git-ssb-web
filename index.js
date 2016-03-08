@@ -169,6 +169,7 @@ module.exports = function (opts, cb) {
   var about = function (id, cb) { cb(null, {name: id}) }
   var reqQueue = []
   var isPublic = opts.public
+  var ssbAppname = opts.appname || 'ssb'
 
   var addr = parseAddr(opts.listenAddr, {host: 'localhost', port: 7718})
   http.createServer(onRequest).listen(addr.port, addr.host, onListening)
@@ -322,7 +323,9 @@ module.exports = function (opts, cb) {
         '</head>\n',
         '<body>',
         '<header>',
-        '<h1><a href="/">git ssb</a></h1>',
+        '<h1><a href="/">git ssb</a>' +
+          (ssbAppname != 'ssb' ? ' <sub>' + ssbAppname + '</sub>' : '') +
+        '</h1>',
         '</header>',
         '<article>']),
       renderTry(read),

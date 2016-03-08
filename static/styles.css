@@ -21,6 +21,12 @@ header h1 a {
   color: #666;
 }
 
+header h1 sub {
+  color: #444;
+  font-style: oblique;
+  font-size: small;
+}
+
 /* content */
 
 article {

@@ -13,6 +13,7 @@ var keys = require('ssb-keys')
 
 var opts = config
 opts.listenAddr = opts._[1]
+opts.appname = appName
 
 require('.')(opts, function (err, server) {
   require('ssb-reconnect')(function (cb) {
