@@ -38,7 +38,7 @@ function parseAddr(str, def) {
 function link(parts, html) {
   var href = '/' + parts.map(encodeURIComponent).join('/')
   var innerHTML = html || escapeHTML(parts[parts.length-1])
-  return '<a href="' + href + '">' + innerHTML + '</a>'
+  return '<a href="' + escapeHTML(href) + '">' + innerHTML + '</a>'
 }
 
 function timestamp(time) {
@@ -220,11 +220,13 @@ module.exports = function (opts, cb) {
   }
 
   function handleRequest(req) {
-    var u = url.parse(req.url)
+    var u = req._u = url.parse(req.url)
     var dirs = u.pathname.slice(1).split(/\/+/).map(tryDecodeURIComponent)
     var dir = dirs[0]
     if (dir == '')
       return serveIndex(req)
+    else if (ref.isBlobId(dir))
+      return serveBlob(req, dir)
     else if (ref.isMsgId(dir))
       return serveMessage(req, dir, dirs.slice(1))
     else if (ref.isFeedId(dir))
@@ -469,7 +471,7 @@ module.exports = function (opts, cb) {
       case 'tree':
         return serveRepoTree(repo, branch, filePath)
       case 'blob':
-        return serveBlob(repo, branch, filePath)
+        return serveRepoBlob(repo, branch, filePath)
       default:
         return serve404(req)
     }
@@ -552,31 +554,33 @@ module.exports = function (opts, cb) {
           reverse: true,
           limit: 8
         }),
-        pull.map(renderRepoUpdate)
+        pull.map(renderRepoUpdate.bind(this, repo))
       )
     ]))
+  }
 
-    function renderRepoUpdate(msg) {
-      var c = msg.value.content
+  function renderRepoUpdate(repo, msg, full) {
+    var c = msg.value.content
 
-      var refs = c.refs ? Object.keys(c.refs).map(function (ref) {
-        return {name: ref, value: c.refs[ref]}
-      }) : []
-      var numObjects = c.objects ? Object.keys(c.objects).length : 0
+    var refs = c.refs ? Object.keys(c.refs).map(function (ref) {
+      return {name: ref, value: c.refs[ref]}
+    }) : []
+    var numObjects = c.objects ? Object.keys(c.objects).length : 0
 
-      return '<section class="collapse">' + timestamp(msg.value.timestamp) + '<br>' +
-        (numObjects ? 'Pushed ' + numObjects + ' objects<br>' : '') +
-        refs.map(function (update) {
-          var name = escapeHTML(update.name)
-          if (!update.value) {
-            return 'Deleted ' + name
-          } else {
-            var commitLink = link([repo.id, 'commit', update.value])
-            return name + ' &rarr; ' + commitLink
-          }
-        }).join('<br>') +
-        '</section>'
-    }
+    return '<section class="collapse">' +
+      link([msg.key], new Date(msg.value.timestamp).toLocaleString()) +
+      '<br>' +
+      (numObjects ? 'Pushed ' + numObjects + ' objects<br>' : '') +
+      refs.map(function (update) {
+        var name = escapeHTML(update.name)
+        if (!update.value) {
+          return 'Deleted ' + name
+        } else {
+          var commitLink = link([repo.id, 'commit', update.value])
+          return name + ' &rarr; ' + commitLink
+        }
+      }).join('<br>') +
+      '</section>'
   }
 
   /* Repo commits */
@@ -762,22 +766,45 @@ module.exports = function (opts, cb) {
 
   /* Repo update */
 
+  function objsArr(objs) {
+    return Array.isArray(objs) ? objs :
+      Object.keys(objs).map(function (sha1) {
+        var obj = Object.create(objs[sha1])
+        obj.sha1 = sha1
+        return obj
+      })
+  }
+
   function serveRepoUpdate(req, repo, id, msg, path) {
-    return renderRepoPage(repo, null, cat([
-      pull.once('<section><h3>' + link([id]) + '</h3>'),
-      readOnce(function (cb) {
-        about.getName(msg.author, function (err, name) {
-          if (err) return cb(err)
-          renderUpdate({key: id, value: msg}, name, cb)
-        })
-      }),
-      pull.once('</section>')
-    ]))
+    var raw = String(req._u.query).split('&').indexOf('raw') > -1
+    return renderRepoPage(repo, null, pull.once(
+      (raw ? '<a href="?" class="raw-link">Info</a>' :
+        '<a href="?raw" class="raw-link">Data</a>') +
+      '<h3>Update</h3>' +
+      (raw ? '<section class="collapse">' + json(msg) + '</section>' :
+        renderRepoUpdate(repo, {key: id, value: msg}, true) +
+        (msg.content.objects ? '<h3>Objects</h3>' +
+          objsArr(msg.content.objects).map(renderObject).join('\n') : '') +
+        (msg.content.packs ? '<h3>Packs</h3>' +
+          msg.content.packs.map(renderPack).join('\n') : ''))))
+  }
+
+  function renderObject(obj) {
+    return '<section class="collapse">' +
+      obj.type + ' ' + link([obj.link], escapeHTML(obj.sha1)) + '<br>' +
+      obj.length + ' bytes' +
+      '</section>'
+  }
+
+  function renderPack(info) {
+    return '<section class="collapse">' +
+      'Pack: ' + link([info.pack.link]) + '<br>' +
+      'Index: ' + link([info.idx.link]) + '</section>'
   }
 
   /* Blob */
 
-  function serveBlob(repo, branch, path) {
+  function serveRepoBlob(repo, branch, path) {
     return readNext(function (cb) {
       repo.getFile(branch, path, function (err, object) {
         if (err) return cb(null, serveBlobNotFound(repoId, err))
@@ -794,15 +821,35 @@ module.exports = function (opts, cb) {
     ]))
   }
 
-  function serveObjectRaw(object) {
-    return cat([
-      pull.once([200, {
-        'Content-Length': object.length,
-        'Content-Type': 'text/plain',
-        'Cache-Control': 'max-age=31536000'
-      }]),
-      object.read
-    ])
+  function serveRaw(length) {
+    var inBody
+    var headers = {
+      'Content-Type': 'text/plain',
+      'Cache-Control': 'max-age=31536000'
+    }
+    if (length != null)
+      headers['Content-Length'] = length
+    return function (read) {
+      return function (end, cb) {
+        if (inBody) return read(end, cb)
+        if (end) return cb(true)
+        cb(null, [200, headers])
+        inBody = true
+      }
+    }
   }
 
+  function serveObjectRaw(object) {
+    return pull(object.read, serveRaw(object.length))
+  }
+
+  function serveBlob(req, key) {
+    return readNext(function (cb) {
+      ssb.blobs.want(key, function (err, got) {
+        if (err) cb(null, serveError(err))
+        else if (!got) cb(null, serve404(req))
+        else cb(null, serveRaw()(ssb.blobs.get(key)))
+      })
+    })
+  }
 }

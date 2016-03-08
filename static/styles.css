@@ -112,6 +112,11 @@ hr {
   color: #1a86ff;
 }
 
+.raw-link {
+  float: right;
+  margin-top: .25em;
+}
+
 /* files list */
 
 .files td:first-child {
