@@ -703,8 +703,8 @@ module.exports = function (opts, cb) {
           var file = files[0]
           if (!file)
             return cb(null, pull.once(path.length ? '' : '<p>No readme</p>'))
-          repo.getObject(file.id, function (err, obj) {
-            if (err) return cb(null, pull.empty())
+          repo.getObjectFromAny(file.id, function (err, obj) {
+            if (err) return cb(err)
             cb(null, cat([
               pull.once('<section><h4>' + escapeHTML(file.name) + '</h4><hr/>'),
               /\.md|\/.markdown/i.test(file.name) ?
