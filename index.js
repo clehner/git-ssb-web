@@ -323,13 +323,13 @@ module.exports = function (opts, cb) {
         '</head>\n',
         '<body>',
         '<header>',
-        '<h1><a href="/">git ssb</a>' +
+        '<h1><a href="/">git ssb' +
           (ssbAppname != 'ssb' ? ' <sub>' + ssbAppname + '</sub>' : '') +
-        '</h1>',
+        '</a></h1>',
         '</header>',
         '<article>']),
       renderTry(read),
-      pull.once('</article></body></html>')
+      pull.once('<hr/></article></body></html>')
     ])
   }
 
