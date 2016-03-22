@@ -780,6 +780,17 @@ module.exports = function (opts, cb) {
 
   function serveRepoUpdate(req, repo, id, msg, path) {
     var raw = String(req._u.query).split('&').indexOf('raw') > -1
+
+    // convert packs to old single-object style
+    if (msg.content.indexes) {
+      for (var i = 0; i < msg.content.indexes.length; i++) {
+        msg.content.packs[i] = {
+          pack: {link: msg.content.packs[i].link},
+          idx: msg.content.indexes[i]
+        }
+      }
+    }
+
     return renderRepoPage(repo, null, pull.once(
       (raw ? '<a href="?" class="raw-link">Info</a>' :
         '<a href="?raw" class="raw-link">Data</a>') +
@@ -801,8 +812,8 @@ module.exports = function (opts, cb) {
 
   function renderPack(info) {
     return '<section class="collapse">' +
-      'Pack: ' + link([info.pack.link]) + '<br>' +
-      'Index: ' + link([info.idx.link]) + '</section>'
+      (info.pack ? 'Pack: ' + link([info.pack.link]) + '<br>' : '') +
+      (info.idx ? 'Index: ' + link([info.idx.link]) : '') + '</section>'
   }
 
   /* Blob */
