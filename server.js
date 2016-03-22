@@ -3,7 +3,7 @@
 // http://unix.stackexchange.com/questions/65235/universal-node-js-shebang
 // vi: ft=javascript
 
-var appName = process.env.ssb_appname ||
+var appName = 'ssb_appname' in process.env ? process.env.ssb_appname :
   require('child_process').spawnSync('git', ['config', 'ssb.appname'],
     {encoding: 'utf8'}).stdout.trim()
 var config = require('ssb-config/inject')(appName)
