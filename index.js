@@ -352,9 +352,10 @@ module.exports = function (opts, cb) {
       id: feedId
     }
     return pull(
-      feedId ? ssb.createUserStream(opts) : ssb.createLogStream(opts),
+      feedId ? ssb.createUserStream(opts) : ssb.createFeedStream(opts),
       pull.filter(function (msg) {
-        return msg.value.content.type in msgTypes
+        return msg.value.content.type in msgTypes &&
+          msg.value.timestamp < Date.now()
       }),
       pull.take(20),
       pull.asyncMap(function (msg, cb) {
