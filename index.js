@@ -679,7 +679,10 @@ module.exports = function (opts, cb) {
       pull(
         repo.readDir(rev, path),
         pull.map(function (file) {
-          var type = (file.mode === 040000) ? 'tree' : 'blob'
+          var type = (file.mode === 040000) ? 'tree' :
+            (file.mode === 0160000) ? 'commit' : 'blob'
+          if (type == 'commit')
+            return ['<span title="git commit link">🖈</span>', '<span title="' + escapeHTML(file.id) + '">' + escapeHTML(file.name) + '</span>']
           var filePath = [repo.id, type, rev].concat(path, file.name)
           return [type == 'tree' ? '📁' : '📄', link(filePath, file.name)]
         }),
