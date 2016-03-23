@@ -121,6 +121,7 @@ hr {
 .raw-link {
   float: right;
   margin-top: .25em;
+  display: inline-block;
 }
 
 /* files list */
