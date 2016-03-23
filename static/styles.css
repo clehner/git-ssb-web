@@ -120,8 +120,11 @@ hr {
 
 .raw-link {
   float: right;
-  margin-top: .25em;
   display: inline-block;
+}
+
+.header-align {
+  margin-top: .25em;
 }
 
 /* files list */

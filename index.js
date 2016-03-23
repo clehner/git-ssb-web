@@ -480,6 +480,8 @@ module.exports = function (opts, cb) {
         return serveRepoTree(repo, branch, filePath)
       case 'blob':
         return serveRepoBlob(repo, branch, filePath)
+      case 'raw':
+        return serveRepoRaw(repo, branch, filePath)
       default:
         return serve404(req)
     }
@@ -800,8 +802,8 @@ module.exports = function (opts, cb) {
     }
 
     return renderRepoPage(repo, null, pull.once(
-      (raw ? '<a href="?" class="raw-link">Info</a>' :
-        '<a href="?raw" class="raw-link">Data</a>') +
+      (raw ? '<a href="?" class="raw-link header-align">Info</a>' :
+        '<a href="?raw" class="raw-link header-align">Data</a>') +
       '<h3>Update</h3>' +
       (raw ? '<section class="collapse">' + json(msg) + '</section>' :
         renderRepoUpdate(repo, {key: id, value: msg}, true) +
@@ -826,11 +828,28 @@ module.exports = function (opts, cb) {
 
   /* Blob */
 
-  function serveRepoBlob(repo, branch, path) {
+  function serveRepoBlob(repo, rev, path) {
     return readNext(function (cb) {
-      repo.getFile(branch, path, function (err, object) {
+      repo.getFile(rev, path, function (err, object) {
         if (err) return cb(null, serveBlobNotFound(repoId, err))
-        cb(null, serveObjectRaw(object))
+        var type = repo.isCommitHash(rev) ? 'Tree' : 'Branch'
+        var pathLinks = path.length === 0 ? '' :
+          ': ' + linkPath([repo.id, 'tree'], [rev].concat(path))
+        var rawFilePath = [repo.id, 'raw', rev].concat(path)
+        cb(null, renderRepoPage(repo, rev, cat([
+          pull.once('<section><h3>' + type + ': ' + rev + ' '),
+          revMenu(repo, rev),
+          pull.once('</h3>'),
+          type == 'Branch' && renderRepoLatest(repo, rev),
+          pull.once('</section><section class="collapse">' +
+            '<h3>Files' + pathLinks + '</h3>' +
+            '<div>' + object.length + ' bytes' +
+            '<span class="raw-link">' + link(rawFilePath, 'Raw') + '</span>' +
+            '</div></section>' +
+            '<section><pre>'),
+          pull(object.read, escapeHTMLStream()),
+          pull.once('</pre></section>')
+        ])))
       })
     })
   }
@@ -841,6 +860,17 @@ module.exports = function (opts, cb) {
       '<p>Blob in repo ' + link([repoId]) + ' was not found</p>',
       '<pre>' + escapeHTML(err.stack) + '</pre>'
     ]))
+  }
+
+  /* Raw blob */
+
+  function serveRepoRaw(repo, branch, path) {
+    return readNext(function (cb) {
+      repo.getFile(branch, path, function (err, object) {
+        if (err) return cb(null, servePlainError(404, 'Blob not found'))
+        cb(null, serveObjectRaw(object))
+      })
+    })
   }
 
   function serveRaw(length) {
