@@ -37,7 +37,7 @@ function parseAddr(str, def) {
 
 function link(parts, html) {
   var href = '/' + parts.map(encodeURIComponent).join('/')
-  var innerHTML = html || escapeHTML(parts[parts.length-1])
+  var innerHTML = html == null ? escapeHTML(parts[parts.length-1]) : html
   return '<a href="' + escapeHTML(href) + '">' + innerHTML + '</a>'
 }
 
@@ -82,6 +82,21 @@ function table(props) {
         })
       ),
       pull.once('</table>')
+    ])
+  }
+}
+
+function ul(props) {
+  return function (read) {
+    return cat([
+      pull.once('<ul' + (props ? ' ' + props : '') + '>'),
+      pull(
+        read,
+        pull.map(function (li) {
+          return '<li>' + li + '</li>'
+        })
+      ),
+      pull.once('</ul>')
     ])
   }
 }
@@ -482,6 +497,8 @@ module.exports = function (opts, cb) {
         return serveRepoBlob(repo, branch, filePath)
       case 'raw':
         return serveRepoRaw(repo, branch, filePath)
+      case 'digs':
+        return serveRepoDigs(repo)
       default:
         return serve404(req)
     }
@@ -500,6 +517,7 @@ module.exports = function (opts, cb) {
     var gitLink = '<input class="clone-url" readonly="readonly" ' +
       'value="' + gitUrl + '" size="' + (2 + gitUrl.length) + '" ' +
       'onclick="this.select()"/>'
+    var digsPath = [repo.id, 'digs']
 
     var done = multicb({ pluck: 1, spread: true })
     getRepoName(repo.id, done())
@@ -520,8 +538,8 @@ module.exports = function (opts, cb) {
                   (upvoted ? '0' : '1') + '">' +
                 '<button type="submit"><i>✌</i> ' +
                   (upvoted ? 'Undig' : 'Dig') +
-              '</button>') +
-              '<strong>' + votes.upvotes + '</strong>' +
+              '</button>') + ' ' +
+              '<strong>' + link(digsPath, votes.upvotes) + '</strong>' +
             '</form>' +
             '<h2>' + link([repo.feed], authorName) + ' / ' +
               link([repo.id], repoName) + '</h2>' +
@@ -903,6 +921,30 @@ module.exports = function (opts, cb) {
         if (err) cb(null, serveError(err))
         else if (!got) cb(null, serve404(req))
         else cb(null, serveRaw()(ssb.blobs.get(key)))
+      })
+    })
+  }
+
+  /* Digs */
+
+  function serveRepoDigs(repo) {
+    return readNext(function (cb) {
+      getVotes(repo.id, function (err, votes) {
+        cb(null, renderRepoPage(repo, '', cat([
+          pull.once('<section><h3>Digs</h3>' +
+            '<div>Total: ' + votes.upvotes + '</div>'),
+          pull(
+            pull.values(Object.keys(votes.upvoters)),
+            pull.asyncMap(function (feedId, cb) {
+              about.getName(feedId, function (err, name) {
+                if (err) return cb(err)
+                cb(null, link([feedId], name))
+              })
+            }),
+            ul()
+          ),
+          pull.once('</section>')
+        ])))
       })
     })
   }
