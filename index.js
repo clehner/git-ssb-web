@@ -480,6 +480,8 @@ module.exports = function (opts, cb) {
     var defaultBranch = 'master'
 
     if (req.method == 'POST') {
+      if (isPublic)
+        return servePlainError(405, 'POST not allowed on public site')
       return readNext(function (cb) {
         readReqJSON(req, function (err, data) {
           if (err) return cb(null, serveError(err, 400))
@@ -567,11 +569,12 @@ module.exports = function (opts, cb) {
               '<strong>' + link(digsPath, votes.upvotes) + '</strong>' +
             '</form>' +
             '<form class="petname" action="" method="post">' +
-              '<input name="repo-name" id="repo-name" value="' +
-                escapeHTML(repoName) + '" />' +
-              '<label class="repo-name-toggle" for="repo-name" ' +
-                'title="Rename the repo"><i>✍</i></label>' +
-              '<input class="repo-name-btn" type="submit" value="Rename">' +
+              (isPublic ? '' :
+                '<input name="repo-name" id="repo-name" value="' +
+                  escapeHTML(repoName) + '" />' +
+                '<label class="repo-name-toggle" for="repo-name" ' +
+                  'title="Rename the repo"><i>✍</i></label>' +
+                '<input class="repo-name-btn" type="submit" value="Rename">') +
             '<h2 class="left">' + link([repo.feed], authorName) + ' / ' +
               link([repo.id], repoName) + '</h2>' +
             '</form>' +
