@@ -560,7 +560,7 @@ module.exports = function (opts, cb) {
             '<div class="repo-title">' +
             '<form class="upvotes" action="" method="post">' +
               (isPublic
-              ? '<button disabled="disabled">✌ Dig</button> '
+              ? '<button disabled="disabled"><i>✌</i> Dig</button> '
               : '<input type="hidden" name="vote" value="' +
                   (upvoted ? '0' : '1') + '">' +
                 '<button type="submit"><i>✌</i> ' +
