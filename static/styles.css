@@ -69,6 +69,10 @@ i {
 
 /* repo page */
 
+.left {
+  float: left;
+}
+
 .repo-title h2 {
   color: #888;
 }
@@ -91,6 +95,32 @@ i {
 }
 .upvotes button:hover {
   background-color: #f6f6f6;
+}
+
+.petname {
+  display: inline-block;
+}
+
+#repo-name {
+  font-size: inherit;
+  width: 0;
+  opacity: 0;
+}
+
+#repo-name:focus {
+  margin-left: 1ex;
+  width: 20em;
+  opacity: 1;
+}
+
+#repo-name:focus ~ h2 :last-child,
+#repo-name:not(:focus) ~ .repo-name-btn:not(:active) {
+  display: none;
+}
+
+.repo-name-toggle {
+  font-size: 1.3em;
+  cursor: pointer;
 }
 
 .clone-url {

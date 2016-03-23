@@ -134,9 +134,15 @@ function tryDecodeURIComponent(str) {
   }
 }
 
-function getRepoName(repoId, cb) {
-  // TODO: use petnames
-  cb(null, repoId.substr(0, 20) + '…')
+function getRepoName(about, ownerId, repoId, cb) {
+  about.getName({
+    owner: ownerId,
+    target: repoId,
+    toString: function () {
+      // hack to fit two parameters into asyncmemo
+      return ownerId + '/' + repoId
+    }
+  }, cb)
 }
 
 var hasOwnProp = Object.prototype.hasOwnProperty
@@ -348,14 +354,14 @@ module.exports = function (opts, cb) {
     ])
   }
 
-  function serveError(err) {
+  function serveError(err, status) {
     if (err.message == 'stream is closed')
       reconnect()
     return pull(
       pull.once(
         '<h2>' + err.name + '</h3>' +
         '<pre>' + escapeHTML(err.stack) + '</pre>'),
-      serveTemplate(err.name, 500)
+      serveTemplate(err.name, status || 500)
     )
   }
 
@@ -388,19 +394,28 @@ module.exports = function (opts, cb) {
   function renderRepoCreated(msg, authorName, cb) {
     var msgLink = link([msg.key],
       new Date(msg.value.timestamp).toLocaleString())
-    var repoLink = link([msg.key])
     var authorLink = link([msg.value.author], authorName)
-    cb(null, '<section class="collapse">' + msgLink + '<br>' +
-      authorLink + ' created repo ' + repoLink + '</section>')
+    var author = msg.value.author
+    getRepoName(about, author, msg.key, function (err, repoName) {
+      if (err) return cb(err)
+      var repoLink = link([msg.key], repoName)
+      cb(null, '<section class="collapse">' + msgLink + '<br>' +
+        authorLink + ' created repo ' + repoLink + '</section>')
+    })
   }
 
   function renderUpdate(msg, authorName, cb) {
     var msgLink = link([msg.key],
       new Date(msg.value.timestamp).toLocaleString())
-    var repoLink = link([msg.value.content.repo])
     var authorLink = link([msg.value.author], authorName)
-    cb(null, '<section class="collapse">' + msgLink + '<br>' +
-      authorLink + ' pushed to ' + repoLink + '</section>')
+    var repoId = msg.value.content.repo
+    var author = msg.value.author
+    getRepoName(about, author, repoId, function (err, repoName) {
+      if (err) return cb(err)
+      var repoLink = link([msg.value.content.repo], repoName)
+      cb(null, '<section class="collapse">' + msgLink + '<br>' +
+        authorLink + ' pushed to ' + repoLink + '</section>')
+    })
   }
 
   /* Index */
@@ -467,9 +482,19 @@ module.exports = function (opts, cb) {
     if (req.method == 'POST') {
       return readNext(function (cb) {
         readReqJSON(req, function (err, data) {
-          if (data && data.vote != null) {
+          if (err) return cb(null, serveError(err, 400))
+          if (!data) return cb(null, serveError(new Error('No data'), 400))
+          if (data.vote != null) {
             var voteValue = +data.vote || 0
             ssb.publish(schemas.vote(repo.id, voteValue), function (err) {
+              if (err) return cb(null, serveError(err))
+              cb(null, serveRedirect(req.url))
+            })
+          } else if ('repo-name' in data) {
+            var name = data['repo-name']
+            if (!name) return cb(null, serveRedirect(req.url))
+            var msg = schemas.name(repo.id, name)
+            ssb.publish(msg, function (err) {
               if (err) return cb(null, serveError(err))
               cb(null, serveRedirect(req.url))
             })
@@ -520,7 +545,7 @@ module.exports = function (opts, cb) {
     var digsPath = [repo.id, 'digs']
 
     var done = multicb({ pluck: 1, spread: true })
-    getRepoName(repo.id, done())
+    about.getName(repo.id, done())
     about.getName(repo.feed, done())
     getVotes(repo.id, done())
 
@@ -541,8 +566,16 @@ module.exports = function (opts, cb) {
               '</button>') + ' ' +
               '<strong>' + link(digsPath, votes.upvotes) + '</strong>' +
             '</form>' +
-            '<h2>' + link([repo.feed], authorName) + ' / ' +
+            '<form class="petname" action="" method="post">' +
+              '<input name="repo-name" id="repo-name" value="' +
+                escapeHTML(repoName) + '" />' +
+              '<label class="repo-name-toggle" for="repo-name" ' +
+                'title="Rename the repo"><i>✍</i></label>' +
+              '<input class="repo-name-btn" type="submit" value="Rename">' +
+            '<h2 class="left">' + link([repo.feed], authorName) + ' / ' +
               link([repo.id], repoName) + '</h2>' +
+            '</form>' +
+            '<br clear="all" \>' +
             '</div><div class="repo-nav">' + link([repo.id], 'Code') +
               link([repo.id, 'activity'], 'Activity') +
               link([repo.id, 'commits', branch || ''], 'Commits') +

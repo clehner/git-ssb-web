@@ -36,42 +36,66 @@ function truncate(str, len) {
 
 // Get About info (name and icon) for a feed.
 function getAboutFull(sbot, source, dest, cb) {
-  var name, image
+  var info = {}
+  var target = dest.target || dest
+  var owner = dest.owner || dest
+
   pull(
     cat([
       // First get About info that we gave them.
       sbot.links({
         source: source,
-        dest: dest,
+        dest: target,
         rel: 'about',
         values: true,
         reverse: true
       }),
       // If that isn't enough, then get About info that they gave themselves.
       sbot.links({
-        source: dest,
-        dest: dest,
+        source: owner,
+        dest: target,
         rel: 'about',
         values: true,
         reverse: true
       }),
     ]),
     pull.filter(function (msg) {
-      return msg && msg.value.content && (!name || !image)
+      return msg && msg.value.content
+    }),
+    pull.drain(function (msg) {
+      if (info.name && info.image) return false
+      var c = msg.value.content
+      if (!info.name && c.name)
+        info.name = c.name
+      if (!info.image && c.image)
+        info.image = c.image.link
+    }, function (err) {
+        if (err && err !== true) return cb(err)
+        if (!info.name) info.name = truncate(target, 20)
+        cb(null, info)
+    })
+  )
+
+  // Keep updated as changes are made
+  pull(
+    sbot.links({
+      dest: target,
+      rel: 'about',
+      live: true,
+      values: true,
+      gte: Date.now()
     }),
     pull.drain(function (msg) {
       var c = msg.value.content
-      if (!name) {
-        name = c.name
-      }
-      if (!image) {
-        image = c.image ? c.image.link : c.image
-        // var imgLink = mlib.link(c.image, 'blob')
-        // image = imgLink && imgLink.link
+      if (msg.value.author == source || msg.value.author == owner) {
+        // TODO: give about from source (self) priority over about from owner
+        if (c.name)
+          info.name = c.name
+        if (c.image)
+          info.image = c.image
       }
     }, function (err) {
-      if (err) return cb(err)
-      cb(null, {name: name || truncate(id, 8), image: image})
+      if (err) console.error(err)
     })
   )
 }
