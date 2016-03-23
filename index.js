@@ -35,8 +35,12 @@ function parseAddr(str, def) {
   return {host: def.host, port: str}
 }
 
+function flattenPath(parts) {
+  return '/' + parts.map(encodeURIComponent).join('/')
+}
+
 function link(parts, html) {
-  var href = '/' + parts.map(encodeURIComponent).join('/')
+  var href = flattenPath(parts)
   var innerHTML = html == null ? escapeHTML(parts[parts.length-1]) : html
   return '<a href="' + escapeHTML(href) + '">' + innerHTML + '</a>'
 }
@@ -184,6 +188,16 @@ var msgTypes = {
 var refLabels = {
   heads: 'Branches',
   tags: 'Tags'
+}
+
+var imgMimes = {
+  png: 'image/png',
+  jpeg: 'image/jpeg',
+  jpg: 'image/jpeg',
+  gif: 'image/gif',
+  tif: 'image/tiff',
+  svg: 'image/svg+xml',
+  bmp: 'image/bmp'
 }
 
 module.exports = function (opts, cb) {
@@ -513,8 +527,7 @@ module.exports = function (opts, cb) {
       // Replace the branch in the path with the rev query value
       path[0] = 'tree'
       path[1] = query.rev
-      req._u.pathname = '/' +
-        [repo.id].concat(path).map(encodeURIComponent).join('/')
+      req._u.pathname = flattenPath([repo.id].concat(path))
       delete req._u.query.rev
       delete req._u.search
       return serveRedirect(url.format(req._u))
@@ -899,11 +912,13 @@ module.exports = function (opts, cb) {
   function serveRepoBlob(repo, rev, path) {
     return readNext(function (cb) {
       repo.getFile(rev, path, function (err, object) {
-        if (err) return cb(null, serveBlobNotFound(repoId, err))
+        if (err) return cb(null, serveBlobNotFound(repo.id, err))
         var type = repo.isCommitHash(rev) ? 'Tree' : 'Branch'
         var pathLinks = path.length === 0 ? '' :
           ': ' + linkPath([repo.id, 'tree'], [rev].concat(path))
         var rawFilePath = [repo.id, 'raw', rev].concat(path)
+        var filename = path[path.length-1]
+        var extension = filename.split('.').pop()
         cb(null, renderRepoPage(repo, rev, cat([
           pull.once('<section><form action="" method="get">' +
             '<h3>' + type + ': ' + rev + ' '),
@@ -916,7 +931,10 @@ module.exports = function (opts, cb) {
             '<span class="raw-link">' + link(rawFilePath, 'Raw') + '</span>' +
             '</div></section>' +
             '<section><pre>'),
-          pull(object.read, escapeHTMLStream()),
+          extension in imgMimes
+            ? pull.once('<img src="' + escapeHTML(flattenPath(rawFilePath)) +
+              '" alt="' + escapeHTML(filename) + '" />')
+            : pull(object.read, escapeHTMLStream()),
           pull.once('</pre></section>')
         ])))
       })
@@ -937,15 +955,17 @@ module.exports = function (opts, cb) {
     return readNext(function (cb) {
       repo.getFile(branch, path, function (err, object) {
         if (err) return cb(null, servePlainError(404, 'Blob not found'))
-        cb(null, serveObjectRaw(object))
+        var extension = path[path.length-1].split('.').pop()
+        var contentType = imgMimes[extension]
+        cb(null, pull(object.read, serveRaw(object.length, contentType)))
       })
     })
   }
 
-  function serveRaw(length) {
+  function serveRaw(length, contentType) {
     var inBody
     var headers = {
-      'Content-Type': 'text/plain; charset=utf-8',
+      'Content-Type': contentType || 'text/plain; charset=utf-8',
       'Cache-Control': 'max-age=31536000'
     }
     if (length != null)
@@ -958,10 +978,6 @@ module.exports = function (opts, cb) {
         inBody = true
       }
     }
-  }
-
-  function serveObjectRaw(object) {
-    return pull(object.read, serveRaw(object.length))
   }
 
   function serveBlob(req, key) {
