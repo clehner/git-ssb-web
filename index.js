@@ -182,7 +182,8 @@ var msgTypes = {
 }
 
 var refLabels = {
-  heads: 'Branches'
+  heads: 'Branches',
+  tags: 'Tags'
 }
 
 module.exports = function (opts, cb) {
@@ -242,7 +243,7 @@ module.exports = function (opts, cb) {
   }
 
   function handleRequest(req) {
-    var u = req._u = url.parse(req.url)
+    var u = req._u = url.parse(req.url, true)
     var dirs = u.pathname.slice(1).split(/\/+/).map(tryDecodeURIComponent)
     var dir = dirs[0]
     if (dir == '')
@@ -478,6 +479,7 @@ module.exports = function (opts, cb) {
 
   function serveRepoPage(req, repo, path) {
     var defaultBranch = 'master'
+    var query = req._u.query
 
     if (req.method == 'POST') {
       if (isPublic)
@@ -505,6 +507,17 @@ module.exports = function (opts, cb) {
           }
         })
       })
+
+    } else if (query.rev != null) {
+      // Allow navigating revs using GET query param.
+      // Replace the branch in the path with the rev query value
+      path[0] = 'tree'
+      path[1] = query.rev
+      req._u.pathname = '/' +
+        [repo.id].concat(path).map(encodeURIComponent).join('/')
+      delete req._u.query.rev
+      delete req._u.search
+      return serveRedirect(url.format(req._u))
     }
 
     var branch = path[1] || defaultBranch
@@ -593,9 +606,10 @@ module.exports = function (opts, cb) {
   function serveRepoTree(repo, rev, path) {
     var type = repo.isCommitHash(rev) ? 'Tree' : 'Branch'
     return renderRepoPage(repo, rev, cat([
-      pull.once('<section><h3>' + type + ': ' + rev + ' '),
+      pull.once('<section><form action="" method="get">' +
+        '<h3>' + type + ': ' + rev + ' '),
       revMenu(repo, rev),
-      pull.once('</h3>'),
+      pull.once('</h3></form>'),
       type == 'Branch' && renderRepoLatest(repo, rev),
       pull.once('</section><section>'),
       renderRepoTree(repo, rev, path),
@@ -676,11 +690,9 @@ module.exports = function (opts, cb) {
   /* Repo tree */
 
   function revMenu(repo, currentName) {
-    var baseHref = '/' + encodeURIComponent(repo.id) + '/tree/'
-    var onchange = 'location.href="' + baseHref + '" + this.value'
     var currentGroup
     return cat([
-      pull.once('<select onchange="' + escapeHTML(onchange) + '">'),
+      pull.once('<select name="rev" onchange="this.form.submit()">'),
       pull(
         repo.refs(),
         pull.map(function (ref) {
@@ -702,7 +714,8 @@ module.exports = function (opts, cb) {
       readOnce(function (cb) {
         cb(null, currentGroup ? '</optgroup>' : '')
       }),
-      pull.once('</select>')
+      pull.once('</select> ' +
+        '<noscript><input type="submit" value="Go" /></noscript>')
     ])
   }
 
@@ -845,7 +858,7 @@ module.exports = function (opts, cb) {
   }
 
   function serveRepoUpdate(req, repo, id, msg, path) {
-    var raw = String(req._u.query).split('&').indexOf('raw') > -1
+    var raw = req._u.query.raw != null
 
     // convert packs to old single-object style
     if (msg.content.indexes) {
@@ -893,9 +906,10 @@ module.exports = function (opts, cb) {
           ': ' + linkPath([repo.id, 'tree'], [rev].concat(path))
         var rawFilePath = [repo.id, 'raw', rev].concat(path)
         cb(null, renderRepoPage(repo, rev, cat([
-          pull.once('<section><h3>' + type + ': ' + rev + ' '),
+          pull.once('<section><form action="" method="get">' +
+            '<h3>' + type + ': ' + rev + ' '),
           revMenu(repo, rev),
-          pull.once('</h3>'),
+          pull.once('</h3></form>'),
           type == 'Branch' && renderRepoLatest(repo, rev),
           pull.once('</section><section class="collapse">' +
             '<h3>Files' + pathLinks + '</h3>' +
