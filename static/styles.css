@@ -5,12 +5,14 @@ body {
   font-family: sans-serif;
 }
 
-/* header */
-
-header {
-  max-width: 45em;
+header, article {
+  width: 45em;
+  max-width: 100%;
+  min-width: 16em;
   margin: 0 auto;
 }
+
+/* header */
 
 header h1 {
   font-weight: inherit;
@@ -28,11 +30,6 @@ header h1 sub {
 }
 
 /* content */
-
-article {
-  max-width: 45em;
-  margin: 0 auto;
-}
 
 section {
   background-color: white;
@@ -64,6 +61,12 @@ hr {
   border-bottom: 1px solid #ddd;
 }
 
+i {
+  font-family: Symbola, 'Apple Color Emoji', 'Android Emoji',
+    'Segoe UI Symbol', 'DejaVu Sans', sans-serif;
+  font-style: inherit;
+}
+
 /* repo page */
 
 .repo-title h2 {
@@ -91,6 +94,7 @@ hr {
 }
 
 .clone-url {
+  font-size: small;
   color: #666;
   padding: .3em 1ex;
   background-color: white;

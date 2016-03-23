@@ -498,7 +498,7 @@ module.exports = function (opts, cb) {
   function renderRepoPage(repo, branch, body) {
     var gitUrl = 'ssb://' + repo.id
     var gitLink = '<input class="clone-url" readonly="readonly" ' +
-      'value="' + gitUrl + '" size="' + gitUrl.length + '" ' +
+      'value="' + gitUrl + '" size="' + (2 + gitUrl.length) + '" ' +
       'onclick="this.select()"/>'
 
     var done = multicb({ pluck: 1, spread: true })
@@ -518,7 +518,8 @@ module.exports = function (opts, cb) {
               ? '<button disabled="disabled">✌ Dig</button> '
               : '<input type="hidden" name="vote" value="' +
                   (upvoted ? '0' : '1') + '">' +
-                '<button type="submit">✌ ' + (upvoted ? 'Undig' : 'Dig') +
+                '<button type="submit"><i>✌</i> ' +
+                  (upvoted ? 'Undig' : 'Dig') +
               '</button>') +
               '<strong>' + votes.upvotes + '</strong>' +
             '</form>' +
@@ -691,7 +692,8 @@ module.exports = function (opts, cb) {
           if (type == 'commit')
             return ['<span title="git commit link">🖈</span>', '<span title="' + escapeHTML(file.id) + '">' + escapeHTML(file.name) + '</span>']
           var filePath = [repo.id, type, rev].concat(path, file.name)
-          return [type == 'tree' ? '📁' : '📄', link(filePath, file.name)]
+          return ['<i>' + (type == 'tree' ? '📁' : '📄') + '</i>',
+            link(filePath, file.name)]
         }),
         table('class="files"')
       )
