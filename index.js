@@ -145,7 +145,7 @@ function getContentType(filename) {
   var ext = filename.split('.').pop()
   return hasOwnProp.call(contentTypes, ext)
     ? contentTypes[ext]
-    : 'text/plain'
+    : 'text/plain; charset=utf-8'
 }
 
 var contentTypes = {
@@ -283,7 +283,7 @@ module.exports = function (opts, cb) {
     return pull.values([
       [code, {
         'Content-Length': Buffer.byteLength(msg),
-        'Content-Type': 'text/plain'
+        'Content-Type': 'text/plain; charset=utf-8'
       }],
       msg
     ])
@@ -896,7 +896,7 @@ module.exports = function (opts, cb) {
   function serveRaw(length) {
     var inBody
     var headers = {
-      'Content-Type': 'text/plain',
+      'Content-Type': 'text/plain; charset=utf-8',
       'Cache-Control': 'max-age=31536000'
     }
     if (length != null)
