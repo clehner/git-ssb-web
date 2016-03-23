@@ -588,10 +588,9 @@ module.exports = function (opts, cb) {
                 '<label class="repo-name-toggle" for="repo-name" ' +
                   'title="Rename the repo"><i>✍</i></label>' +
                 '<input class="repo-name-btn" type="submit" value="Rename">') +
-            '<h2 class="left">' + link([repo.feed], authorName) + ' / ' +
+            '<h2>' + link([repo.feed], authorName) + ' / ' +
               link([repo.id], repoName) + '</h2>' +
             '</form>' +
-            '<br clear="all" \>' +
             '</div><div class="repo-nav">' + link([repo.id], 'Code') +
               link([repo.id, 'activity'], 'Activity') +
               link([repo.id, 'commits', branch || ''], 'Commits') +

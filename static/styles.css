@@ -69,12 +69,13 @@ i {
 
 /* repo page */
 
-.left {
-  float: left;
+.repo-title {
+  height: 2.4em;
 }
 
 .repo-title h2 {
   color: #888;
+  float: left;
 }
 
 .upvotes {
@@ -95,10 +96,6 @@ i {
 }
 .upvotes button:hover {
   background-color: #f6f6f6;
-}
-
-.petname {
-  display: inline-block;
 }
 
 #repo-name {
