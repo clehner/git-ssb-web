@@ -547,7 +547,7 @@ module.exports = function (opts, cb) {
     var digsPath = [repo.id, 'digs']
 
     var done = multicb({ pluck: 1, spread: true })
-    about.getName(repo.id, done())
+    getRepoName(about, repo.feed, repo.id, done())
     about.getName(repo.feed, done())
     getVotes(repo.id, done())
 
