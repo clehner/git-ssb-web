@@ -19,6 +19,7 @@
     "ssb-reconnect": "^0.1.0",
     "stream-to-pull-stream": "^1.6.6"
   },
+  "homepage": "http://git-ssb.celehner.com/%25q5d5Du%2B9WkaSdjc8aJPZm%2BjMrqgo0tmfR%2BRcX5ZZ6H4%3D.sha256",
   "repository": {
     "type": "git",
     "url": "https://github.com/clehner/git-ssb-web"
