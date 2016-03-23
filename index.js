@@ -371,16 +371,20 @@ module.exports = function (opts, cb) {
   }
 
   function renderRepoCreated(msg, authorName, cb) {
+    var msgLink = link([msg.key],
+      new Date(msg.value.timestamp).toLocaleString())
     var repoLink = link([msg.key])
     var authorLink = link([msg.value.author], authorName)
-    cb(null, '<section class="collapse">' + timestamp(msg.value.timestamp) + '<br>' +
+    cb(null, '<section class="collapse">' + msgLink + '<br>' +
       authorLink + ' created repo ' + repoLink + '</section>')
   }
 
   function renderUpdate(msg, authorName, cb) {
+    var msgLink = link([msg.key],
+      new Date(msg.value.timestamp).toLocaleString())
     var repoLink = link([msg.value.content.repo])
     var authorLink = link([msg.value.author], authorName)
-    cb(null, '<section class="collapse">' + timestamp(msg.value.timestamp) + '<br>' +
+    cb(null, '<section class="collapse">' + msgLink + '<br>' +
       authorLink + ' pushed to ' + repoLink + '</section>')
   }
 
