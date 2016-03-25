@@ -78,13 +78,16 @@ i {
   float: left;
 }
 
-.upvotes {
+.right-bar {
   float: right;
   display: inline-block;
+}
+
+.repo-title .right-bar {
   margin-top: .25em;
 }
 
-.upvotes button {
+.right-bar button {
   font-size: 1em;
   border-radius: .5ex;
 
@@ -94,7 +97,7 @@ i {
   border-radius: .5ex;
   cursor: pointer;
 }
-.upvotes button:hover {
+.right-bar button:hover {
   background-color: #f6f6f6;
 }
 
@@ -168,9 +171,32 @@ i {
 
 .user-id {
   float: right;
-  font-size: 16px;
   font-weight: normal;
   display: inline-block;
   margin: 0;
+
+}
+
+h2 .user-id {
+  font-size: 16px;
   padding-top: .5em;
+}
+
+h3 .user-id {
+  font-size: 15px;
+  padding-top: .25em;
+}
+
+/* new issue form */
+
+.wide-input {
+  width: 99%;
+  display: block;
+  font-size: 1.1em;
+}
+
+/* issues */
+
+.issue-info {
+  float: right;
 }

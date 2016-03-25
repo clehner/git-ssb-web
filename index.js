@@ -15,6 +15,7 @@ var marked = require('ssb-marked')
 var asyncMemo = require('asyncmemo')
 var multicb = require('multicb')
 var schemas = require('ssb-msg-schemas')
+var Issues = require('ssb-issues')
 
 marked.setOptions({
   gfm: true,
@@ -201,7 +202,7 @@ var imgMimes = {
 }
 
 module.exports = function (opts, cb) {
-  var ssb, reconnect, myId, getRepo, getVotes, getMsg
+  var ssb, reconnect, myId, getRepo, getVotes, getMsg, issues
   var about = function (id, cb) { cb(null, {name: id}) }
   var reqQueue = []
   var isPublic = opts.public
@@ -228,6 +229,7 @@ module.exports = function (opts, cb) {
         })
         getVotes = ssbVotes(ssb)
         getMsg = asyncMemo(ssb.get)
+        issues = Issues.init(ssb)
       })
     }
   }
@@ -469,6 +471,14 @@ module.exports = function (opts, cb) {
               if (err) return cb(null, serveRepoNotFound(repo.id, err))
               cb(null, serveRepoUpdate(req, Repo(repo), id, msg, path))
             })
+          case 'issue':
+            return getRepo(c.project, function (err, repo) {
+              if (err) return cb(null, serveRepoNotFound(repo.id, err))
+              issues.get({key: id, value: msg}, function (err, issue) {
+                if (err) return cb(null, serveError(err))
+                cb(null, serveRepoIssue(req, Repo(repo), issue, path))
+              })
+            })
           default:
             if (ref.isMsgId(c.repo))
               return getRepo(c.repo, function (err, repo) {
@@ -516,6 +526,16 @@ module.exports = function (opts, cb) {
               if (err) return cb(null, serveError(err))
               cb(null, serveRedirect(req.url))
             })
+          } else if (path == 'issues,new') {
+            // cb(null, servePlainError(200, JSON.stringify(data, 0, 2)))
+            issues.new({
+              project: repo.id,
+              title: data.title,
+              text: data.text
+            }, function (err, issue) {
+              if (err) return cb(null, serveError(err))
+              cb(null, serveRedirect('/' + encodeURIComponent(issue.id)))
+            })
           } else {
             cb(null, servePlainError(400, 'What are you trying to do?'))
           }
@@ -552,6 +572,15 @@ module.exports = function (opts, cb) {
         return serveRepoRaw(repo, branch, filePath)
       case 'digs':
         return serveRepoDigs(repo)
+      case 'issues':
+        switch (path[1]) {
+          case '':
+          case undefined:
+            return serveRepoIssues(repo, branch, filePath)
+          case 'new':
+            if (filePath.length == 0)
+              return serveRepoNewIssue(repo)
+        }
       default:
         return serve404(req)
     }
@@ -584,7 +613,7 @@ module.exports = function (opts, cb) {
         cb(null, serveTemplate(repo.id)(cat([
           pull.once(
             '<div class="repo-title">' +
-            '<form class="upvotes" action="" method="post">' +
+            '<form class="right-bar" action="" method="post">' +
               (isPublic
               ? '<button disabled="disabled"><i>✌</i> Dig</button> '
               : '<input type="hidden" name="vote" value="' +
@@ -607,6 +636,7 @@ module.exports = function (opts, cb) {
             '</div><div class="repo-nav">' + link([repo.id], 'Code') +
               link([repo.id, 'activity'], 'Activity') +
               link([repo.id, 'commits', branch || ''], 'Commits') +
+              link([repo.id, 'issues'], 'Issues') +
               gitLink +
             '</div>'),
           body
@@ -1013,4 +1043,73 @@ module.exports = function (opts, cb) {
       })
     })
   }
+
+  /* Issues */
+
+  function serveRepoIssues(repo, issueId, path) {
+    var numIssues = 0
+    return renderRepoPage(repo, '', cat([
+      pull.once(
+        (isPublic ? '' :
+          '<div class="right-bar">' + link([repo.id, 'issues', 'new'],
+            '<button>&plus; New Issue</button>') +
+          '</div>') +
+        '<h3>Issues</h3>'),
+      pull(
+        issues.createFeedStream({ project: repo.id }),
+        pull.map(function (issue) {
+          numIssues++
+          var issueHref = '/' + encodeURIComponent(issue.id)
+          return '<section class="collapse">' +
+            '<a href="' + issueHref + '">' +
+              escapeHTML(issue.title) +
+              '<span class="issue-info">' +
+                new Date(issue.created_at).toLocaleString() +
+              '</span>' +
+            '</a>' +
+            '</section>'
+        })
+      ),
+      readOnce(function (cb) {
+        cb(null, numIssues > 0 ? '' : '<p>No issues</p>')
+      })
+    ]))
+  }
+
+  /* New Issue */
+
+  function serveRepoNewIssue(repo, issueId, path) {
+    return renderRepoPage(repo, '', pull.once(
+      '<h3>New Issue</h3>' +
+      '<section><form class="new-issue" action="" method="post">' +
+      '<p><input class="wide-input" name="title" placeholder="Issue Title" size="69" /></p>' +
+      '<p><textarea class="wide-input" name="text" placeholder="Description" rows="12" cols="69"></textarea></p>' +
+      '<button type="submit">Create</button>' +
+      '</form></section>'))
+  }
+
+  /* Issue */
+
+  function serveRepoIssue(req, repo, issue, path) {
+    return renderRepoPage(repo, null, cat([
+      pull.once(
+        '<h3>' +
+          issue.title +
+          '<code class="user-id">' + issue.id + '</code>' +
+          '</h3>' +
+        '<section>' +
+        '<div>' + (issue.open ? 'Open' : 'Closed') + '</div>' +
+        '</section>'),
+      readOnce(function (cb) {
+        about.getName(issue.author, function (err, authorName) {
+          if (err) return cb(err)
+          var authorLink = link([issue.author], authorName)
+          cb(null, '<section>' +
+            authorLink + ' on ' + timestamp(issue.created_at) + ':<br/>' +
+            marked(issue.text) + '</section>')
+        })
+      })
+    ]))
+  }
+
 }
