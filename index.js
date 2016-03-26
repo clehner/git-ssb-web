@@ -1107,17 +1107,56 @@ module.exports = function (opts, cb) {
           '<code class="user-id">' + issue.id + '</code>' +
           '</h3>' +
         '<section>' +
-        '<div>' + (issue.open ? 'Open' : 'Closed') + '</div>' +
-        '</section>'),
+        (issue.open
+          ? '<strong class="issue-status open">Open</strong>'
+          : '<strong class="issue-status closed">Closed</strong>')),
       readOnce(function (cb) {
         about.getName(issue.author, function (err, authorName) {
           if (err) return cb(err)
           var authorLink = link([issue.author], authorName)
-          cb(null, '<section>' +
-            authorLink + ' on ' + timestamp(issue.created_at) + ':<br/>' +
+          cb(null,
+            authorLink + ' opened this issue on ' + timestamp(issue.created_at) +
+            '<hr/>' +
             marked(issue.text) + '</section>')
         })
-      })
+      }),
+      // render posts and edits
+      pull(
+        ssb.links({
+          dest: issue.id,
+          values: true
+        }),
+        pull.unique('key'),
+        addAuthorName(about),
+        pull.map(function (msg) {
+          var authorLink = link([msg.value.author], msg.authorName)
+          var msgTimeLink = link([msg.key],
+            new Date(msg.value.timestamp).toLocaleString())
+          var c = msg.value.content
+          switch (c.type) {
+            case 'post':
+              if (c.root == issue.id)
+                return '<section>' +
+                  authorLink + ' &middot; ' +
+                  msgTimeLink +
+                  marked(c.text) +
+                  '</section>'
+              else
+                return '<p class="mention-preview">' +
+                  authorLink + ' mentioned this issue in ' +
+                  link([msg.key], c.text || c.type) +
+                  '</p>'
+            case 'issue-edit':
+              return '<section>' +
+                authorLink + ' &middot; ' +
+                msgTimeLink +
+                markdown.inline(c.text || c.type) +
+                '</section>'
+            default:
+              return json(msg)
+          }
+        })
+      )
     ]))
   }
 

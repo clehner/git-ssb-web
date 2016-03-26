@@ -200,3 +200,26 @@ h3 .user-id {
 .issue-info {
   float: right;
 }
+
+/* issue */
+
+.issue-status {
+  padding: .4ex .75ex;
+  margin-right: .75ex;
+  border-radius: .5ex;
+  color: white;
+}
+
+.open {
+  background-color: #38ae67;
+}
+
+.closed {
+  background-color: #d84a38;
+}
+
+.mention-preview {
+  overflow: hidden;
+  white-space: pre;
+  text-overflow: ellipsis;
+}
