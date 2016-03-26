@@ -194,7 +194,8 @@ function readReqJSON(req, cb) {
 
 var msgTypes = {
   'git-repo': true,
-  'git-update': true
+  'git-update': true,
+  'issue': true
 }
 
 var refLabels = {
@@ -408,40 +409,36 @@ module.exports = function (opts, cb) {
       }),
       pull.take(20),
       addAuthorName(about),
-      pull.asyncMap(function (msg, cb) {
-        switch (msg.value.content.type) {
-          case 'git-repo': return renderRepoCreated(msg, cb)
-          case 'git-update': return renderUpdate(msg, cb)
-        }
-      })
+      pull.asyncMap(renderFeedItem)
     )
   }
 
-  function renderRepoCreated(msg, cb) {
+  function renderFeedItem(msg, cb) {
+    var c = msg.value.content
     var msgLink = link([msg.key],
       new Date(msg.value.timestamp).toLocaleString())
-    var authorLink = link([msg.value.author], msg.authorName)
     var author = msg.value.author
-    getRepoName(about, author, msg.key, function (err, repoName) {
-      if (err) return cb(err)
-      var repoLink = link([msg.key], repoName)
-      cb(null, '<section class="collapse">' + msgLink + '<br>' +
-        authorLink + ' created repo ' + repoLink + '</section>')
-    })
-  }
-
-  function renderUpdate(msg, cb) {
-    var msgLink = link([msg.key],
-      new Date(msg.value.timestamp).toLocaleString())
     var authorLink = link([msg.value.author], msg.authorName)
-    var repoId = msg.value.content.repo
-    var author = msg.value.author
-    getRepoName(about, author, repoId, function (err, repoName) {
-      if (err) return cb(err)
-      var repoLink = link([msg.value.content.repo], repoName)
-      cb(null, '<section class="collapse">' + msgLink + '<br>' +
-        authorLink + ' pushed to ' + repoLink + '</section>')
-    })
+    switch (c.type) {
+      case 'git-repo':
+        return getRepoName(about, author, msg.key, function (err, repoName) {
+          if (err) return cb(err)
+          var repoLink = link([msg.key], repoName)
+          cb(null, '<section class="collapse">' + msgLink + '<br>' +
+            authorLink + ' created repo ' + repoLink + '</section>')
+        })
+      case 'git-update':
+        return getRepoName(about, author, c.repo, function (err, repoName) {
+          if (err) return cb(err)
+          var repoLink = link([c.repo], repoName)
+          cb(null, '<section class="collapse">' + msgLink + '<br>' +
+            authorLink + ' pushed to ' + repoLink + '</section>')
+        })
+      case 'issue':
+        var issueLink = link([msg.key], c.title)
+        return cb(null, '<section class="collapse">' + msgLink + '<br>' +
+          authorLink + ' opened issue ' + issueLink + '</section>')
+    }
   }
 
   /* Index */
