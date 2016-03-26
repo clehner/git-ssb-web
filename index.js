@@ -152,6 +152,15 @@ function getRepoName(about, ownerId, repoId, cb) {
   }, cb)
 }
 
+function addAuthorName(about) {
+  return paramap(function (msg, cb) {
+    about.getName(msg.value.author, function (err, authorName) {
+      msg.authorName = authorName
+      cb(err, msg)
+    })
+  }, 8)
+}
+
 var hasOwnProp = Object.prototype.hasOwnProperty
 
 function getContentType(filename) {
@@ -398,22 +407,20 @@ module.exports = function (opts, cb) {
           msg.value.timestamp < Date.now()
       }),
       pull.take(20),
+      addAuthorName(about),
       pull.asyncMap(function (msg, cb) {
-        about.getName(msg.value.author, function (err, name) {
-        if (err) return cb(err)
-          switch (msg.value.content.type) {
-            case 'git-repo': return renderRepoCreated(msg, name, cb)
-            case 'git-update': return renderUpdate(msg, name, cb)
-          }
-        })
+        switch (msg.value.content.type) {
+          case 'git-repo': return renderRepoCreated(msg, cb)
+          case 'git-update': return renderUpdate(msg, cb)
+        }
       })
     )
   }
 
-  function renderRepoCreated(msg, authorName, cb) {
+  function renderRepoCreated(msg, cb) {
     var msgLink = link([msg.key],
       new Date(msg.value.timestamp).toLocaleString())
-    var authorLink = link([msg.value.author], authorName)
+    var authorLink = link([msg.value.author], msg.authorName)
     var author = msg.value.author
     getRepoName(about, author, msg.key, function (err, repoName) {
       if (err) return cb(err)
@@ -423,10 +430,10 @@ module.exports = function (opts, cb) {
     })
   }
 
-  function renderUpdate(msg, authorName, cb) {
+  function renderUpdate(msg, cb) {
     var msgLink = link([msg.key],
       new Date(msg.value.timestamp).toLocaleString())
-    var authorLink = link([msg.value.author], authorName)
+    var authorLink = link([msg.value.author], msg.authorName)
     var repoId = msg.value.content.repo
     var author = msg.value.author
     getRepoName(about, author, repoId, function (err, repoName) {
