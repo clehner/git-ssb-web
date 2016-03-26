@@ -477,12 +477,12 @@ module.exports = function (opts, cb) {
             })
           case 'git-update':
             return getRepo(c.repo, function (err, repo) {
-              if (err) return cb(null, serveRepoNotFound(repo.id, err))
+              if (err) return cb(null, serveRepoNotFound(c.repo, err))
               cb(null, serveRepoUpdate(req, Repo(repo), id, msg, path))
             })
           case 'issue':
             return getRepo(c.project, function (err, repo) {
-              if (err) return cb(null, serveRepoNotFound(repo.id, err))
+              if (err) return cb(null, serveRepoNotFound(c.project, err))
               issues.get({key: id, value: msg}, function (err, issue) {
                 if (err) return cb(null, serveError(err))
                 cb(null, serveRepoIssue(req, Repo(repo), issue, path))
@@ -491,7 +491,7 @@ module.exports = function (opts, cb) {
           default:
             if (ref.isMsgId(c.repo))
               return getRepo(c.repo, function (err, repo) {
-                if (err) return cb(null, serveRepoNotFound(repo.id, err))
+                if (err) return cb(null, serveRepoNotFound(c.repo, err))
                 cb(null, serveRepoSomething(req, Repo(repo), id, msg, path))
               })
             else
