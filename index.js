@@ -1144,7 +1144,7 @@ module.exports = function (opts, cb) {
           'Rename the issue',
           '<h3>' + issue.title + '</h3>') +
         '<code>' + issue.id + '</code>' +
-        '<section>' +
+        '<section class="collapse">' +
         (issue.open
           ? '<strong class="issue-status open">Open</strong>'
           : '<strong class="issue-status closed">Closed</strong>')),
@@ -1174,24 +1174,28 @@ module.exports = function (opts, cb) {
           switch (c.type) {
             case 'post':
               if (c.root == issue.id)
-                return '<section>' +
+                return '<section class="collapse">' +
                   authorLink + ' &middot; ' +
                   msgTimeLink +
                   marked(c.text) +
                   '</section>'
               else
-                return '<p class="mention-preview">' +
+                return '<section class="collapse mention-preview">' +
                   authorLink + ' mentioned this issue in ' +
                   link([msg.key], c.text || c.type) +
-                  '</p>'
+                  '</section>'
             case 'issue-edit':
-              return '<section>' +
-                authorLink + ' &middot; ' +
-                msgTimeLink +
-                markdown.inline(c.text || c.type) +
+              return '<section class="collapse">' +
+                (c.title == null ? '' :
+                  authorLink + ' renamed this issue to <q>' +
+                  escapeHTML(c.title) + '</q>') +
                 '</section>'
             default:
-              return json(msg)
+              return '<section class="collapse">' +
+                authorLink + ' &middot; ' +
+                msgTimeLink +
+                json(c) +
+                '</section>'
           }
         })
       )
