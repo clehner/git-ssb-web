@@ -1124,10 +1124,10 @@ module.exports = function (opts, cb) {
   function serveRepoIssue(req, repo, issue, path) {
     return renderRepoPage(repo, null, cat([
       pull.once(
-        '<h3>' +
-          issue.title +
-          '<code class="user-id">' + issue.id + '</code>' +
-          '</h3>' +
+        nameForm(isPublic, issue.id, issue.title, 'issue-title',
+          'Rename the issue',
+          '<h3>' + issue.title + '</h3>') +
+        '<code>' + issue.id + '</code>' +
         '<section>' +
         (issue.open
           ? '<strong class="issue-status open">Open</strong>'

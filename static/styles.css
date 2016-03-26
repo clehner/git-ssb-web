@@ -77,7 +77,8 @@ i {
   color: #888;
 }
 
-.petname h2 {
+.petname h2,
+.petname h3 {
   float: left;
 }
 
@@ -117,6 +118,7 @@ i {
 }
 
 .name:focus ~ h2 :last-child,
+.name:focus ~ h3,
 .name:not(:focus) ~ .name-btn:not(:active) {
   display: none;
 }
