@@ -272,6 +272,56 @@ module.exports = function (opts, cb) {
 
   function handleRequest(req) {
     var u = req._u = url.parse(req.url, true)
+
+    if (req.method == 'POST') {
+      if (isPublic)
+        return servePlainError(405, 'POST not allowed on public site')
+      return readNext(function (cb) {
+        readReqJSON(req, function (err, data) {
+          if (err) return cb(null, serveError(err, 400))
+          if (!data) return cb(null, serveError(new Error('No data'), 400))
+
+          switch (data.action) {
+            case 'vote':
+              var voteValue = +data.vote || 0
+              if (!data.id)
+                return cb(null, serveError(new Error('Missing vote id'), 400))
+              var msg = schemas.vote(data.id, voteValue)
+              return ssb.publish(msg, function (err) {
+                if (err) return cb(null, serveError(err))
+                cb(null, serveRedirect(req.url))
+              })
+              return
+
+          case 'name':
+            if (!data.name)
+              return cb(null, serveError(new Error('Missing name'), 400))
+            if (!data.id)
+              return cb(null, serveError(new Error('Missing id'), 400))
+            var msg = schemas.name(data.id, data.name)
+            return ssb.publish(msg, function (err) {
+              if (err) return cb(null, serveError(err))
+              cb(null, serveRedirect(req.url))
+            })
+
+          default:
+            if (path == 'issues,new') {
+              issues.new({
+                project: repo.id,
+                title: data.title,
+                text: data.text
+              }, function (err, issue) {
+                if (err) return cb(null, serveError(err))
+                cb(null, serveRedirect('/' + encodeURIComponent(issue.id)))
+              })
+            } else {
+              cb(null, servePlainError(400, 'What are you trying to do?'))
+            }
+          }
+        })
+      })
+    }
+
     var dirs = u.pathname.slice(1).split(/\/+/).map(tryDecodeURIComponent)
     var dir = dirs[0]
     if (dir == '')
@@ -511,47 +561,10 @@ module.exports = function (opts, cb) {
     var defaultBranch = 'master'
     var query = req._u.query
 
-    if (req.method == 'POST') {
-      if (isPublic)
-        return servePlainError(405, 'POST not allowed on public site')
-      return readNext(function (cb) {
-        readReqJSON(req, function (err, data) {
-          if (err) return cb(null, serveError(err, 400))
-          if (!data) return cb(null, serveError(new Error('No data'), 400))
-          if (data.vote != null) {
-            var voteValue = +data.vote || 0
-            ssb.publish(schemas.vote(repo.id, voteValue), function (err) {
-              if (err) return cb(null, serveError(err))
-              cb(null, serveRedirect(req.url))
-            })
-          } else if ('repo-name' in data) {
-            var name = data['repo-name']
-            if (!name) return cb(null, serveRedirect(req.url))
-            var msg = schemas.name(repo.id, name)
-            ssb.publish(msg, function (err) {
-              if (err) return cb(null, serveError(err))
-              cb(null, serveRedirect(req.url))
-            })
-          } else if (path == 'issues,new') {
-            // cb(null, servePlainError(200, JSON.stringify(data, 0, 2)))
-            issues.new({
-              project: repo.id,
-              title: data.title,
-              text: data.text
-            }, function (err, issue) {
-              if (err) return cb(null, serveError(err))
-              cb(null, serveRedirect('/' + encodeURIComponent(issue.id)))
-            })
-          } else {
-            cb(null, servePlainError(400, 'What are you trying to do?'))
-          }
-        })
-      })
-
-    } else if (query.rev != null) {
+    if (query.rev != null) {
       // Allow navigating revs using GET query param.
       // Replace the branch in the path with the rev query value
-      path[0] = 'tree'
+      path[0] = path[0] || 'tree'
       path[1] = query.rev
       req._u.pathname = flattenPath([repo.id].concat(path))
       delete req._u.query.rev
@@ -624,6 +637,9 @@ module.exports = function (opts, cb) {
               ? '<button disabled="disabled"><i>✌</i> Dig</button> '
               : '<input type="hidden" name="vote" value="' +
                   (upvoted ? '0' : '1') + '">' +
+                '<input type="hidden" name="action" value="vote">' +
+                '<input type="hidden" name="id" value="' +
+                  escapeHTML(repo.id) + '">' +
                 '<button type="submit"><i>✌</i> ' +
                   (upvoted ? 'Undig' : 'Dig') +
               '</button>') + ' ' +
@@ -631,8 +647,11 @@ module.exports = function (opts, cb) {
             '</form>' +
             '<form class="petname" action="" method="post">' +
               (isPublic ? '' :
-                '<input name="repo-name" id="repo-name" value="' +
+                '<input name="name" id="repo-name" value="' +
                   escapeHTML(repoName) + '" />' +
+                '<input type="hidden" name="action" value="name">' +
+                '<input type="hidden" name="id" value="' +
+                  escapeHTML(repo.id) + '">' +
                 '<label class="repo-name-toggle" for="repo-name" ' +
                   'title="Rename the repo"><i>✍</i></label>' +
                 '<input class="repo-name-btn" type="submit" value="Rename">') +
