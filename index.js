@@ -108,6 +108,21 @@ function ul(props) {
   }
 }
 
+function nameForm(isPublic, id, name, inputId, title, header) {
+  return '<form class="petname" action="" method="post">' +
+    (isPublic ? '' :
+      '<input name="name" id="' + inputId + '" class="name" value="' +
+        escapeHTML(name) + '" />' +
+      '<input type="hidden" name="action" value="name">' +
+      '<input type="hidden" name="id" value="' +
+        escapeHTML(id) + '">' +
+      '<label class="name-toggle" for="' + inputId + '" ' +
+        'title="' + title + '"><i>✍</i></label>' +
+      '<input class="name-btn" type="submit" value="Rename">') +
+      header +
+  '</form>'
+}
+
 function readNext(fn) {
   var next
   return function (end, cb) {
@@ -645,19 +660,10 @@ module.exports = function (opts, cb) {
               '</button>') + ' ' +
               '<strong>' + link(digsPath, votes.upvotes) + '</strong>' +
             '</form>' +
-            '<form class="petname" action="" method="post">' +
-              (isPublic ? '' :
-                '<input name="name" id="repo-name" value="' +
-                  escapeHTML(repoName) + '" />' +
-                '<input type="hidden" name="action" value="name">' +
-                '<input type="hidden" name="id" value="' +
-                  escapeHTML(repo.id) + '">' +
-                '<label class="repo-name-toggle" for="repo-name" ' +
-                  'title="Rename the repo"><i>✍</i></label>' +
-                '<input class="repo-name-btn" type="submit" value="Rename">') +
-            '<h2>' + link([repo.feed], authorName) + ' / ' +
-              link([repo.id], repoName) + '</h2>' +
-            '</form>' +
+            nameForm(isPublic, repo.id, repoName, 'repo-name',
+              'Rename the repo',
+              '<h2>' + link([repo.feed], authorName) + ' / ' +
+                link([repo.id], repoName) + '</h2>') +
             '</div><div class="repo-nav">' + link([repo.id], 'Code') +
               link([repo.id, 'activity'], 'Activity') +
               link([repo.id, 'commits', branch || ''], 'Commits') +

@@ -75,6 +75,9 @@ i {
 
 .repo-title h2 {
   color: #888;
+}
+
+.petname h2 {
   float: left;
 }
 
@@ -101,24 +104,24 @@ i {
   background-color: #f6f6f6;
 }
 
-#repo-name {
+.name {
   font-size: inherit;
   width: 0;
   opacity: 0;
 }
 
-#repo-name:focus {
+.name:focus {
   margin-left: 1ex;
   width: 20em;
   opacity: 1;
 }
 
-#repo-name:focus ~ h2 :last-child,
-#repo-name:not(:focus) ~ .repo-name-btn:not(:active) {
+.name:focus ~ h2 :last-child,
+.name:not(:focus) ~ .name-btn:not(:active) {
   display: none;
 }
 
-.repo-name-toggle {
+.name-toggle {
   font-size: 1.3em;
   cursor: pointer;
 }
