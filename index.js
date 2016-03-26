@@ -108,18 +108,21 @@ function ul(props) {
   }
 }
 
-function nameForm(isPublic, id, name, inputId, title, header) {
+function renderNameForm(enabled, id, name, action, inputId, title, header) {
+  if (!inputId) inputId = action
   return '<form class="petname" action="" method="post">' +
-    (isPublic ? '' :
+    (enabled ?
       '<input name="name" id="' + inputId + '" class="name" value="' +
         escapeHTML(name) + '" />' +
-      '<input type="hidden" name="action" value="name">' +
+      '<input type="hidden" name="action" value="' + action + '">' +
       '<input type="hidden" name="id" value="' +
         escapeHTML(id) + '">' +
       '<label class="name-toggle" for="' + inputId + '" ' +
         'title="' + title + '"><i>✍</i></label>' +
-      '<input class="name-btn" type="submit" value="Rename">') +
-      header +
+      '<input class="name-btn" type="submit" value="Rename">' +
+      header :
+      header + '<br clear="all"/>'
+    ) +
   '</form>'
 }
 
@@ -308,12 +311,23 @@ module.exports = function (opts, cb) {
               })
               return
 
-          case 'name':
+          case 'repo-name':
             if (!data.name)
               return cb(null, serveError(new Error('Missing name'), 400))
             if (!data.id)
               return cb(null, serveError(new Error('Missing id'), 400))
             var msg = schemas.name(data.id, data.name)
+            return ssb.publish(msg, function (err) {
+              if (err) return cb(null, serveError(err))
+              cb(null, serveRedirect(req.url))
+            })
+
+          case 'issue-title':
+            if (!data.name)
+              return cb(null, serveError(new Error('Missing name'), 400))
+            if (!data.id)
+              return cb(null, serveError(new Error('Missing id'), 400))
+            var msg = Issues.schemas.edit(data.id, {title: data.name})
             return ssb.publish(msg, function (err) {
               if (err) return cb(null, serveError(err))
               cb(null, serveRedirect(req.url))
@@ -660,7 +674,7 @@ module.exports = function (opts, cb) {
               '</button>') + ' ' +
               '<strong>' + link(digsPath, votes.upvotes) + '</strong>' +
             '</form>' +
-            nameForm(isPublic, repo.id, repoName, 'repo-name',
+            renderNameForm(!isPublic, repo.id, repoName, 'repo-name', null,
               'Rename the repo',
               '<h2>' + link([repo.feed], authorName) + ' / ' +
                 link([repo.id], repoName) + '</h2>') +
@@ -1124,7 +1138,7 @@ module.exports = function (opts, cb) {
   function serveRepoIssue(req, repo, issue, path) {
     return renderRepoPage(repo, null, cat([
       pull.once(
-        nameForm(isPublic, issue.id, issue.title, 'issue-title',
+        renderNameForm(!isPublic, issue.id, issue.title, 'issue-title', null,
           'Rename the issue',
           '<h3>' + issue.title + '</h3>') +
         '<code>' + issue.id + '</code>' +
