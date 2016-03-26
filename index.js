@@ -16,6 +16,7 @@ var asyncMemo = require('asyncmemo')
 var multicb = require('multicb')
 var schemas = require('ssb-msg-schemas')
 var Issues = require('ssb-issues')
+var paramap = require('pull-paramap')
 
 marked.setOptions({
   gfm: true,
@@ -40,10 +41,11 @@ function flattenPath(parts) {
   return '/' + parts.map(encodeURIComponent).join('/')
 }
 
-function link(parts, html) {
+function link(parts, text, raw) {
   var href = flattenPath(parts)
-  var innerHTML = html == null ? escapeHTML(parts[parts.length-1]) : html
-  return '<a href="' + escapeHTML(href) + '">' + innerHTML + '</a>'
+  if (text == null) text = parts[parts.length-1]
+  if (!raw) text = escapeHTML(text)
+  return '<a href="' + escapeHTML(href) + '">' + text + '</a>'
 }
 
 function timestamp(time) {
@@ -717,7 +719,7 @@ module.exports = function (opts, cb) {
             var commitPath = [repo.id, 'commit', commit.id]
             var treePath = [repo.id, 'tree', commit.id]
             cb(null, '<section class="collapse">' +
-              '<strong>' + link(commitPath, escapeHTML(commit.title)) + '</strong><br>' +
+              '<strong>' + link(commitPath, commit.title) + '</strong><br>' +
               '<code>' + commit.id + '</code> ' +
                 link(treePath, 'Tree') + '<br>' +
               (commit.separateAuthor ? escapeHTML(commit.author.name) + ' authored on ' + commit.author.date.toLocaleString() + '<br>' : '') +
@@ -767,7 +769,7 @@ module.exports = function (opts, cb) {
         if (err) return cb(err)
         var commitPath = [repo.id, 'commit', commit.id]
         cb(null,
-          'Latest: <strong>' + link(commitPath, escapeHTML(commit.title)) +
+          'Latest: <strong>' + link(commitPath, commit.title) +
           '</strong><br>' +
           '<code>' + commit.id + '</code><br> ' +
           escapeHTML(commit.committer.name) + ' committed on ' +
@@ -860,7 +862,7 @@ module.exports = function (opts, cb) {
           var commitPath = [repo.id, 'commit', commit.id]
           var treePath = [repo.id, 'tree', commit.tree]
           cb(null,
-            '<p><strong>' + link(commitPath, escapeHTML(commit.title)) +
+            '<p><strong>' + link(commitPath, commit.title) +
               '</strong></p>' +
             pre(commit.body) +
             '<p>' +
@@ -926,7 +928,7 @@ module.exports = function (opts, cb) {
 
   function renderObject(obj) {
     return '<section class="collapse">' +
-      obj.type + ' ' + link([obj.link], escapeHTML(obj.sha1)) + '<br>' +
+      obj.type + ' ' + link([obj.link], obj.sha1) + '<br>' +
       obj.length + ' bytes' +
       '</section>'
   }
@@ -1052,7 +1054,7 @@ module.exports = function (opts, cb) {
       pull.once(
         (isPublic ? '' :
           '<div class="right-bar">' + link([repo.id, 'issues', 'new'],
-            '<button>&plus; New Issue</button>') +
+            '<button>&plus; New Issue</button>', true) +
           '</div>') +
         '<h3>Issues</h3>'),
       pull(
