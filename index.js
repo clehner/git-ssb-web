@@ -112,8 +112,10 @@ function renderNameForm(enabled, id, name, action, inputId, title, header) {
   if (!inputId) inputId = action
   return '<form class="petname" action="" method="post">' +
     (enabled ?
-      '<input name="name" id="' + inputId + '" class="name" value="' +
-        escapeHTML(name) + '" />' +
+      '<input type="checkbox" class="name-checkbox" id="' + inputId + '" ' +
+        'onfocus="this.form.name.focus()" />' +
+      '<input name="name" class="name" value="' + escapeHTML(name) + '" ' +
+        'onkeyup="if (event.keyCode == 27) this.form.reset()" />' +
       '<input type="hidden" name="action" value="' + action + '">' +
       '<input type="hidden" name="id" value="' +
         escapeHTML(id) + '">' +

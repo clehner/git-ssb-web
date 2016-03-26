@@ -107,25 +107,26 @@ i {
 
 .name {
   font-size: inherit;
-  width: 0;
-  opacity: 0;
-}
-
-.name:focus {
   margin-left: 1ex;
   width: 20em;
-  opacity: 1;
-}
-
-.name:focus ~ h2 :last-child,
-.name:focus ~ h3,
-.name:not(:focus) ~ .name-btn:not(:active) {
-  display: none;
 }
 
 .name-toggle {
   font-size: 1.3em;
   cursor: pointer;
+  margin-left: .25ex;
+}
+
+.name-checkbox {
+  position: absolute;
+  opacity: 0;
+}
+
+.name-checkbox:checked ~ h2 :last-child,
+.name-checkbox:checked ~ h3,
+.name-checkbox:not(:checked) ~ .name,
+.name-checkbox:not(:checked) ~ .name-btn {
+  display: none;
 }
 
 .clone-url {
