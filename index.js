@@ -681,11 +681,11 @@ module.exports = function (opts, cb) {
               (isPublic ? 'disabled="disabled"' : ' type="submit"') + '>' +
                 '<i>✌</i> ' + (!isPublic && upvoted ? 'Undig' : 'Dig') +
                 '</button>' +
-              (isPublic ? '<input type="hidden" name="vote" value="' +
+              (isPublic ? '' : '<input type="hidden" name="vote" value="' +
                   (upvoted ? '0' : '1') + '">' +
                 '<input type="hidden" name="action" value="vote">' +
                 '<input type="hidden" name="id" value="' +
-                  escapeHTML(repo.id) + '">' : '') + ' ' +
+                  escapeHTML(repo.id) + '">') + ' ' +
               '<strong>' + link(digsPath, votes.upvotes) + '</strong>' +
             '</form>' +
             renderNameForm(!isPublic, repo.id, repoName, 'repo-name', null,
