@@ -158,7 +158,7 @@ function renderNameForm(enabled, id, name, action, inputId, title, header) {
 function renderPostForm(repo, placeholder, rows) {
   return '<input type="radio" class="tab-radio" id="tab1" name="tab" checked="checked"/>' +
   '<input type="radio" class="tab-radio" id="tab2" name="tab"/>' +
-  '<div class="tab-links">' +
+  '<div id="tab-links" class="tab-links" style="display:none">' +
     '<label for="tab1" id="write-tab-link" class="tab1-link">Write</label>' +
     '<label for="tab2" id="preview-tab-link" class="tab2-link">Preview</label>' +
   '</div>' +
@@ -269,6 +269,7 @@ function readReqJSON(req, cb) {
 
 var issueCommentScript = '(' + function () {
   var $ = document.getElementById.bind(document)
+  $('tab-links').style.display = 'block'
   $('preview-tab-link').onclick = function (e) {
     with (new XMLHttpRequest()) {
       open('POST', '', true)
@@ -788,7 +789,7 @@ module.exports = function (opts, cb) {
   function renderRepoPage(repo, branch, body) {
     var gitUrl = 'ssb://' + repo.id
     var gitLink = '<input class="clone-url" readonly="readonly" ' +
-      'value="' + gitUrl + '" size="' + (2 + gitUrl.length) + '" ' +
+      'value="' + gitUrl + '" size="61" ' +
       'onclick="this.select()"/>'
     var digsPath = [repo.id, 'digs']
 
@@ -1246,7 +1247,7 @@ module.exports = function (opts, cb) {
           return '<section class="collapse">' +
             '<a href="' + encodeLink(issue.id) + '">' +
               escapeHTML(issue.title) +
-              '<span class="issue-info">' +
+              '<span class="right-bar">' +
                 new Date(issue.created_at).toLocaleString() +
               '</span>' +
             '</a>' +

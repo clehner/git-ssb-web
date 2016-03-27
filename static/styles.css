@@ -124,6 +124,7 @@ label {
 .tab-radio {
   position: absolute;
   opacity: 0;
+  font-size: 0;
 }
 
 .name-checkbox:checked ~ h2 :last-child,
@@ -150,6 +151,7 @@ label {
 
 nav {
   margin: .5em 0 1ex 0;
+  clear: left;
 }
 
 nav a {
@@ -210,12 +212,6 @@ h3 .user-id {
   line-height: inherit;
 }
 
-/* issues */
-
-.issue-info {
-  float: right;
-}
-
 /* issue */
 
 .issue-status {
@@ -256,8 +252,13 @@ h3 .user-id {
 }
 
 #tab1:not(:checked) ~ .tab1,
-#tab2:not(:checked) ~ .tab2 {
+.tab2 {
   display: none;
+}
+
+.tab1,
+#tab2:checked ~ .tab2 {
+  display: block;
 }
 
 .preview-text {
