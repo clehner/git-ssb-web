@@ -146,6 +146,16 @@ function renderNameForm(enabled, id, name, action, inputId, title, header) {
   '</form>'
 }
 
+function wrap(tag) {
+  return function (read) {
+    return cat([
+      pull.once('<' + tag + '>'),
+      read,
+      pull.once('</' + tag + '>')
+    ])
+  }
+}
+
 function readNext(fn) {
   var next
   return function (end, cb) {
@@ -250,6 +260,8 @@ var imgMimes = {
   svg: 'image/svg+xml',
   bmp: 'image/bmp'
 }
+
+var markdownFilenameRegex = /\.md$|\/.markdown$/i
 
 module.exports = function (opts, cb) {
   var ssb, reconnect, myId, getRepo, getVotes, getMsg, issues
@@ -905,7 +917,7 @@ module.exports = function (opts, cb) {
             if (err) return cb(err)
             cb(null, cat([
               pull.once('<section><h4>' + escapeHTML(file.name) + '</h4><hr/>'),
-              /\.md|\/.markdown/i.test(file.name) ?
+              markdownFilenameRegex.test(file.name) ?
                 readOnce(function (cb) {
                   pull(obj.read, pull.collect(function (err, bufs) {
                     if (err) return cb(err)
@@ -1037,12 +1049,14 @@ module.exports = function (opts, cb) {
             '<div>' + object.length + ' bytes' +
             '<span class="raw-link">' + link(rawFilePath, 'Raw') + '</span>' +
             '</div></section>' +
-            '<section><pre>'),
+            '<section>'),
           extension in imgMimes
-            ? pull.once('<img src="' + escapeHTML(flattenPath(rawFilePath)) +
-              '" alt="' + escapeHTML(filename) + '" />')
-            : pull(object.read, escapeHTMLStream()),
-          pull.once('</pre></section>')
+          ? pull.once('<img src="' + escapeHTML(flattenPath(rawFilePath)) +
+            '" alt="' + escapeHTML(filename) + '" />')
+          : markdownFilenameRegex.test(filename)
+          ? pull(object.read, escapeHTMLStream(), pull.map(markdown))
+          : pull(object.read, escapeHTMLStream(), wrap('pre')),
+          pull.once('</section>')
         ])))
       })
     })
