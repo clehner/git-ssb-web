@@ -17,6 +17,7 @@ var multicb = require('multicb')
 var schemas = require('ssb-msg-schemas')
 var Issues = require('ssb-issues')
 var paramap = require('pull-paramap')
+var gitPack = require('pull-git-pack')
 
 // render links to git objects and ssb objects
 var blockRenderer = new marked.Renderer()
@@ -899,23 +900,27 @@ module.exports = function (opts, cb) {
       pull.once('<h3>Commits</h3>'),
       pull(
         repo.readLog(branch),
-        pull.asyncMap(function (hash, cb) {
+        paramap(function (hash, cb) {
           repo.getCommitParsed(hash, function (err, commit) {
             if (err) return cb(err)
-            var commitPath = [repo.id, 'commit', commit.id]
-            var treePath = [repo.id, 'tree', commit.id]
-            cb(null, '<section class="collapse">' +
-              '<strong>' + link(commitPath, commit.title) + '</strong><br>' +
-              '<code>' + commit.id + '</code> ' +
-                link(treePath, 'Tree') + '<br>' +
-              (commit.separateAuthor ? escapeHTML(commit.author.name) + ' authored on ' + commit.author.date.toLocaleString() + '<br>' : '') +
-              escapeHTML(commit.committer.name) + ' committed on ' + commit.committer.date.toLocaleString() +
-              '</section>')
+            cb(null, renderCommit(repo, commit))
           })
-        })
+        }, 8)
       )
     ]))
   }
+
+  function renderCommit(repo, commit) {
+    var commitPath = [repo.id, 'commit', commit.id]
+    var treePath = [repo.id, 'tree', commit.id]
+    return '<section class="collapse">' +
+      '<strong>' + link(commitPath, commit.title) + '</strong><br>' +
+      '<code>' + commit.id + '</code> ' +
+        link(treePath, 'Tree') + '<br>' +
+      (commit.separateAuthor ? escapeHTML(commit.author.name) + ' authored on ' + commit.author.date.toLocaleString() + '<br>' : '') +
+      escapeHTML(commit.committer.name) + ' committed on ' + commit.committer.date.toLocaleString() +
+      '</section>'
+}
 
   /* Repo tree */
 
@@ -1089,16 +1094,49 @@ module.exports = function (opts, cb) {
       }
     }
 
-    return renderRepoPage(repo, null, pull.once(
-      (raw ? '<a href="?" class="raw-link header-align">Info</a>' :
-        '<a href="?raw" class="raw-link header-align">Data</a>') +
-      '<h3>Update</h3>' +
-      (raw ? '<section class="collapse">' + json(msg) + '</section>' :
-        renderRepoUpdate(repo, {key: id, value: msg}, true) +
-        (msg.content.objects ? '<h3>Objects</h3>' +
-          objsArr(msg.content.objects).map(renderObject).join('\n') : '') +
-        (msg.content.packs ? '<h3>Packs</h3>' +
-          msg.content.packs.map(renderPack).join('\n') : ''))))
+    return renderRepoPage(repo, null,
+      raw ? pull.once(
+       '<a href="?" class="raw-link header-align">Info</a>' +
+        '<h3>Update</h3>' +
+       '<section class="collapse">' + json(msg) + '</section>')
+      : cat([
+        pull.once(
+          '<a href="?raw" class="raw-link header-align">Data</a>' +
+          '<h3>Update</h3>' +
+          renderRepoUpdate(repo, {key: id, value: msg}, true) +
+          (msg.content.objects ? '<h3>Objects</h3>' +
+            objsArr(msg.content.objects).map(renderObject).join('\n') : '') +
+          (msg.content.packs ? '<h3>Packs</h3>' +
+            msg.content.packs.map(renderPack).join('\n') : '')),
+        cat(!msg.content.packs ? [] : [
+          pull.once('<h3>Commits</h3>'),
+          pull(
+            pull.values(msg.content.packs),
+            paramap(function (pack, cb) {
+              var key = pack.pack.link
+              ssb.blobs.want(key, function (err, got) {
+                if (err) cb(err)
+                else if (!got) cb(null, pull.once('Missing blob ' + key))
+                else cb(null, ssb.blobs.get(key))
+              })
+            }, 8),
+            pull.map(function (readPack, cb) {
+              return gitPack.decode({}, repo, cb, readPack)
+            }),
+            pull.flatten(),
+            paramap(function (obj, cb) {
+              if (obj.type == 'commit')
+                Repo.getCommitParsed(obj, cb)
+              else
+                pull(obj.read, pull.drain(null, cb))
+            }, 8),
+            pull.filter(),
+            pull.map(function (commit) {
+              return renderCommit(repo, commit)
+            })
+          )
+        ])
+      ]))
   }
 
   function renderObject(obj) {
