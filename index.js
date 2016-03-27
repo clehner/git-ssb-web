@@ -917,8 +917,8 @@ module.exports = function (opts, cb) {
       '<strong>' + link(commitPath, commit.title) + '</strong><br>' +
       '<code>' + commit.id + '</code> ' +
         link(treePath, 'Tree') + '<br>' +
-      (commit.separateAuthor ? escapeHTML(commit.author.name) + ' authored on ' + commit.author.date.toLocaleString() + '<br>' : '') +
-      escapeHTML(commit.committer.name) + ' committed on ' + commit.committer.date.toLocaleString() +
+      escapeHTML(commit.author.name) + ' &middot; ' + commit.author.date.toLocaleString() +
+      (commit.separateAuthor ? '<br>' + escapeHTML(commit.committer.name) + ' committed on ' + commit.committer.date.toLocaleString() : "") +
       '</section>'
 }
 
