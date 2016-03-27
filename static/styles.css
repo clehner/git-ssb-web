@@ -111,13 +111,17 @@ i {
   width: 20em;
 }
 
+label {
+  cursor: pointer;
+}
+
 .name-toggle {
   font-size: 1.3em;
-  cursor: pointer;
   margin-left: .25ex;
 }
 
-.name-checkbox {
+.name-checkbox,
+.tab-radio {
   position: absolute;
   opacity: 0;
 }
@@ -198,7 +202,8 @@ h3 .user-id {
 .wide-input {
   width: 99%;
   display: block;
-  font-size: 1.1em;
+  font-size: inherit;
+  line-height: inherit;
 }
 
 /* issues */
@@ -234,4 +239,33 @@ h3 .user-id {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.tab-links label {
+  padding: 1ex;
+  color: #333;
+}
+
+#tab1:checked ~ .tab-links .tab1-link,
+#tab2:checked ~ .tab-links .tab2-link {
+  text-decoration: underline;
+}
+
+#tab1:not(:checked) ~ .tab1,
+#tab2:not(:checked) ~ .tab2 {
+  display: none;
+}
+
+.preview-text {
+  border: 1px solid #c0bdba;
+  min-height: 6em;
+  margin: .25ex 0;
+  padding: .25ex;
+}
+
+.preview-text :first-child {
+  margin-top: 0;
+}
+.preview-text :last-child {
+  margin-bottom: 0;
 }

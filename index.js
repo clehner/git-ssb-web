@@ -240,6 +240,20 @@ function readReqJSON(req, cb) {
   )
 }
 
+var issueCommentScript = '(' + function () {
+  var $ = document.getElementById.bind(document)
+  $('preview-tab-link').onclick = function (e) {
+    with (new XMLHttpRequest()) {
+      open('POST', '', true)
+      onload = function() {
+        $('preview-tab').innerHTML = responseText
+      }
+      send('action=markdown&text=' +
+        encodeURIComponent($('comment-text').value))
+    }
+  }
+}.toString() + ')()'
+
 var msgTypes = {
   'git-repo': true,
   'git-update': true,
@@ -370,6 +384,7 @@ module.exports = function (opts, cb) {
           case 'comment':
             if (!data.id)
               return cb(null, serveError(new Error('Missing id'), 400))
+
             // TODO: add ref mentions
             var msg = schemas.post(data.text, data.id, data.branch || data.id)
             if (data.open != null)
@@ -390,6 +405,9 @@ module.exports = function (opts, cb) {
               if (err) return cb(null, serveError(err))
               cb(null, serveRedirect(encodeLink(issue.id)))
             })
+
+          case 'markdown':
+            return cb(null, serveMarkdown(data.text))
 
           default:
             cb(null, servePlainError(400, 'What are you trying to do?'))
@@ -463,6 +481,17 @@ module.exports = function (opts, cb) {
         Location: path
       }],
       msg
+    ])
+  }
+
+  function serveMarkdown(text) {
+    var html = markdown(text)
+    return pull.values([
+      [200, {
+        'Content-Length': Buffer.byteLength(html),
+        'Content-Type': 'text/html; charset=utf-8'
+      }],
+      html
     ])
   }
 
@@ -1173,8 +1202,8 @@ module.exports = function (opts, cb) {
       '<h3>New Issue</h3>' +
       '<section><form class="new-issue" action="" method="post">' +
       '<input type="hidden" name="action" value="new-issue">' +
-      '<p><input class="wide-input" name="title" placeholder="Issue Title" size="69" /></p>' +
-      '<p><textarea class="wide-input" name="text" placeholder="Description" rows="12" cols="69"></textarea></p>' +
+      '<p><input class="wide-input" name="title" placeholder="Issue Title" size="77" /></p>' +
+      '<p><textarea class="wide-input" name="text" placeholder="Description" rows="12" cols="77"></textarea></p>' +
       '<button type="submit" class="btn">Create</button>' +
       '</form></section>'))
   }
@@ -1252,16 +1281,27 @@ module.exports = function (opts, cb) {
         })
       ),
       pull.once(isPublic ? '' : '<section><form action="" method="post">' +
+        '<input type="radio" class="tab-radio" id="tab1" name="tab" checked="checked"/>' +
+        '<input type="radio" class="tab-radio" id="tab2" name="tab"/>' +
+        '<div class="tab-links">' +
+          '<label for="tab1" id="write-tab-link" class="tab1-link">Write</label>' +
+          '<label for="tab2" id="preview-tab-link" class="tab2-link">Preview</label>' +
+        '</div>' +
+        '<div id="write-tab" class="tab1">' +
         '<input type="hidden" name="action" value="comment">' +
         '<input type="hidden" name="id" value="' + issue.id + '">' +
-        '<textarea name="text" class="wide-input" rows="6" cols="69"></textarea>' +
+        '<textarea id="comment-text" name="text" class="wide-input" rows="4" cols="77"></textarea>' +
+        '</div>' +
+        '<div class="preview-text tab2" id="preview-tab">' +
+        '</div>' +
         (isAuthor ?
           '<input type="submit" class="btn"' +
           ' name="' + (issue.open ? 'close' : 'open') + '"' +
           ' value="' + (issue.open ? 'Close issue' : 'Reopen issue') + '"' +
           '/>' : '') +
         '<input type="submit" class="btn open" value="Comment" />' +
-      '</form></section>')
+      '<script>' + issueCommentScript + '</script>' +
+      '</section></form>')
     ]))
   }
 
