@@ -606,8 +606,13 @@ module.exports = function (opts, cb) {
         })
       case 'issue':
         var issueLink = link([msg.key], c.title)
-        return cb(null, '<section class="collapse">' + msgLink + '<br>' +
-          authorLink + ' opened issue ' + issueLink + '</section>')
+        return getRepoName(about, author, c.project, function (err, repoName) {
+          if (err) return cb(err)
+          var repoLink = link([c.project], repoName)
+          cb(null, '<section class="collapse">' + msgLink + '<br>' +
+            authorLink + ' opened issue ' + issueLink +
+            ' on ' + repoLink + '</section>')
+        })
     }
   }
 
