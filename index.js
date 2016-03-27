@@ -1212,6 +1212,7 @@ module.exports = function (opts, cb) {
 
   function serveRepoIssue(req, repo, issue, path) {
     var isAuthor = (myId == issue.author) || (myId == repo.feed)
+    var newestMsg = {key: issue.id, value: {timestamp: issue.created_at}}
     return renderRepoPage(repo, null, cat([
       pull.once(
         renderNameForm(!isPublic, issue.id, issue.title, 'issue-title', null,
@@ -1246,6 +1247,8 @@ module.exports = function (opts, cb) {
           var msgTimeLink = link([msg.key],
             new Date(msg.value.timestamp).toLocaleString())
           var c = msg.value.content
+          if (msg.value.timestamp > newestMsg.value.timestamp)
+            newestMsg = msg
           switch (c.type) {
             case 'post':
               if (c.root == issue.id) {
@@ -1280,7 +1283,11 @@ module.exports = function (opts, cb) {
           }
         })
       ),
-      pull.once(isPublic ? '' : '<section><form action="" method="post">' +
+      isPublic ? pull.empty() : readOnce(renderCommentForm)
+    ]))
+
+    function renderCommentForm(cb) {
+      cb(null, '<section><form action="" method="post">' +
         '<input type="radio" class="tab-radio" id="tab1" name="tab" checked="checked"/>' +
         '<input type="radio" class="tab-radio" id="tab2" name="tab"/>' +
         '<div class="tab-links">' +
@@ -1290,6 +1297,7 @@ module.exports = function (opts, cb) {
         '<div id="write-tab" class="tab1">' +
         '<input type="hidden" name="action" value="comment">' +
         '<input type="hidden" name="id" value="' + issue.id + '">' +
+        '<input type="hidden" name="branch" value="' + newestMsg.key + '">' +
         '<textarea id="comment-text" name="text" class="wide-input" rows="4" cols="77"></textarea>' +
         '</div>' +
         '<div class="preview-text tab2" id="preview-tab">' +
@@ -1302,7 +1310,7 @@ module.exports = function (opts, cb) {
         '<input type="submit" class="btn open" value="Comment" />' +
       '<script>' + issueCommentScript + '</script>' +
       '</section></form>')
-    ]))
+    }
   }
 
 }
