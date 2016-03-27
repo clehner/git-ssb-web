@@ -24,7 +24,7 @@ blockRenderer.urltransform = function (url) {
   if (ref.isLink(url))
     return encodeLink(url)
   if (/^[0-9a-f]{40}$/.test(url) && this.options.repo)
-    return flattenPath([this.options.repo.id, 'tree', url])
+    return encodeLink([this.options.repo.id, 'tree', url])
   return url
 }
 
@@ -58,19 +58,19 @@ function parseAddr(str, def) {
   return {host: def.host, port: str}
 }
 
-function flattenPath(parts) {
-  return '/' + parts.map(encodeURIComponent).join('/')
+function isArray(arr) {
+  return Object.prototype.toString.call(arr) == '[object Array]'
 }
 
 function encodeLink(url) {
-  return '/' + encodeURIComponent(url)
+  if (!isArray(url)) url = [url]
+  return '/' + url.map(encodeURIComponent).join('/')
 }
 
 function link(parts, text, raw, props) {
-  var href = flattenPath(parts)
   if (text == null) text = parts[parts.length-1]
   if (!raw) text = escapeHTML(text)
-  return '<a href="' + escapeHTML(href) + '"' +
+  return '<a href="' + encodeLink(parts) + '"' +
     (props ? ' ' + props : '') +
     '>' + text + '</a>'
 }
@@ -743,7 +743,7 @@ module.exports = function (opts, cb) {
       // Replace the branch in the path with the rev query value
       path[0] = path[0] || 'tree'
       path[1] = query.rev
-      req._u.pathname = flattenPath([repo.id].concat(path))
+      req._u.pathname = encodeLink([repo.id].concat(path))
       delete req._u.query.rev
       delete req._u.search
       return serveRedirect(url.format(req._u))
@@ -1154,7 +1154,7 @@ module.exports = function (opts, cb) {
             '</div></section>' +
             '<section>'),
           extension in imgMimes
-          ? pull.once('<img src="' + escapeHTML(flattenPath(rawFilePath)) +
+          ? pull.once('<img src="' + encodeLink(rawFilePath) +
             '" alt="' + escapeHTML(filename) + '" />')
           : markdownFilenameRegex.test(filename)
           ? readOnce(function (cb) {
