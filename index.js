@@ -18,10 +18,13 @@ var schemas = require('ssb-msg-schemas')
 var Issues = require('ssb-issues')
 var paramap = require('pull-paramap')
 
+// render links to git objects and ssb objects
 var blockRenderer = new marked.Renderer()
 blockRenderer.urltransform = function (url) {
   if (ref.isLink(url))
     return encodeLink(url)
+  if (/^[0-9a-f]{40}$/.test(url) && this.options.repo)
+    return flattenPath([this.options.repo.id, 'tree', url])
   return url
 }
 
@@ -37,10 +40,14 @@ marked.setOptions({
   renderer: blockRenderer
 })
 
-function markdown(text) {
+// hack to make git link mentions work
+new marked.InlineLexer(1, marked.defaults).rules.mention =
+  /^(\s)?([@%&][A-Za-z0-9\._\-+=\/]*[A-Za-z0-9_\-+=\/]|[0-9a-f]{40})/
+
+function markdown(text, repo, cb) {
   if (!text) return ''
   if (typeof text != 'string') text = String(text)
-  return marked(text)
+  return marked(text, {repo: repo}, cb)
 }
 
 function parseAddr(str, def) {
@@ -146,13 +153,14 @@ function renderNameForm(enabled, id, name, action, inputId, title, header) {
   '</form>'
 }
 
-function renderPostForm(placeholder, rows) {
+function renderPostForm(repo, placeholder, rows) {
   return '<input type="radio" class="tab-radio" id="tab1" name="tab" checked="checked"/>' +
   '<input type="radio" class="tab-radio" id="tab2" name="tab"/>' +
   '<div class="tab-links">' +
     '<label for="tab1" id="write-tab-link" class="tab1-link">Write</label>' +
     '<label for="tab2" id="preview-tab-link" class="tab2-link">Preview</label>' +
   '</div>' +
+  '<input type="hidden" id="repo-id" value="' + repo.id + '"/>' +
   '<div id="write-tab" class="tab1">' +
     '<textarea id="post-text" name="text" class="wide-input"' +
     ' rows="' + (rows||4) + '" cols="77"' +
@@ -265,7 +273,7 @@ var issueCommentScript = '(' + function () {
       onload = function() {
         $('preview-tab').innerHTML = responseText
       }
-      send('action=markdown&text=' +
+      send('action=markdown&repo=' + $('repo-id').value + '&text=' +
         encodeURIComponent($('post-text').value))
     }
   }
@@ -424,7 +432,7 @@ module.exports = function (opts, cb) {
             })
 
           case 'markdown':
-            return cb(null, serveMarkdown(data.text))
+            return cb(null, serveMarkdown(data.text, {id: data.repo}))
 
           default:
             cb(null, servePlainError(400, 'What are you trying to do?'))
@@ -501,8 +509,8 @@ module.exports = function (opts, cb) {
     ])
   }
 
-  function serveMarkdown(text) {
-    var html = markdown(text)
+  function serveMarkdown(text, repo) {
+    var html = markdown(text, repo)
     return pull.values([
       [200, {
         'Content-Length': Buffer.byteLength(html),
@@ -973,7 +981,7 @@ module.exports = function (opts, cb) {
                   pull(obj.read, pull.collect(function (err, bufs) {
                     if (err) return cb(err)
                     var buf = Buffer.concat(bufs, obj.length)
-                    cb(null, markdown(buf.toString()))
+                    markdown(buf.toString(), repo, cb)
                   }))
                 })
               : cat([
@@ -1105,7 +1113,13 @@ module.exports = function (opts, cb) {
           ? pull.once('<img src="' + escapeHTML(flattenPath(rawFilePath)) +
             '" alt="' + escapeHTML(filename) + '" />')
           : markdownFilenameRegex.test(filename)
-          ? pull(object.read, escapeHTMLStream(), pull.map(markdown))
+          ? readOnce(function (cb) {
+            pull(object.read, pull.collect(function (err, bufs) {
+              if (err) return cb(err)
+              var buf = Buffer.concat(bufs, object.length)
+              cb(null, markdown(buf.toString('utf8'), repo))
+            }))
+          })
           : pull(object.read, escapeHTMLStream(), wrap('pre')),
           pull.once('</section>')
         ])))
@@ -1225,7 +1239,7 @@ module.exports = function (opts, cb) {
       '<section><form action="" method="post">' +
       '<input type="hidden" name="action" value="new-issue">' +
       '<p><input class="wide-input" name="title" placeholder="Issue Title" size="77" /></p>' +
-      renderPostForm('Description', 8) +
+      renderPostForm(repo, 'Description', 8) +
       '<button type="submit" class="btn">Create</button>' +
       '</form></section>'))
   }
@@ -1252,7 +1266,7 @@ module.exports = function (opts, cb) {
           cb(null,
             authorLink + ' opened this issue on ' + timestamp(issue.created_at) +
             '<hr/>' +
-            markdown(issue.text) +
+            markdown(issue.text, repo) +
             '</section>')
         })
       }),
@@ -1280,7 +1294,7 @@ module.exports = function (opts, cb) {
                   (changed == null ? '' : ' ' + (
                     changed ? 'reopened this issue' : 'closed this issue')) +
                   ' &middot; ' + msgTimeLink +
-                  markdown(c.text) +
+                  markdown(c.text, repo) +
                   '</section>'
               } else {
                 var text = c.text || (c.type + ' ' + msg.key)
@@ -1313,7 +1327,7 @@ module.exports = function (opts, cb) {
         '<input type="hidden" name="action" value="comment">' +
         '<input type="hidden" name="id" value="' + issue.id + '">' +
         '<input type="hidden" name="branch" value="' + newestMsg.key + '">' +
-        renderPostForm() +
+        renderPostForm(repo) +
         '<input type="submit" class="btn open" value="Comment" />' +
         (isAuthor ?
           '<input type="submit" class="btn"' +
