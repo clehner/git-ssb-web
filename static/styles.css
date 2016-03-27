@@ -232,6 +232,6 @@ h3 .user-id {
 
 .mention-preview {
   overflow: hidden;
-  white-space: pre;
+  white-space: nowrap;
   text-overflow: ellipsis;
 }

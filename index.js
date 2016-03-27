@@ -18,6 +18,13 @@ var schemas = require('ssb-msg-schemas')
 var Issues = require('ssb-issues')
 var paramap = require('pull-paramap')
 
+var blockRenderer = new marked.Renderer()
+blockRenderer.urltransform = function (url) {
+  if (ref.isLink(url))
+    return encodeLink(url)
+  return url
+}
+
 marked.setOptions({
   gfm: true,
   mentions: true,
@@ -26,8 +33,15 @@ marked.setOptions({
   pedantic: false,
   sanitize: true,
   smartLists: true,
-  smartypants: false
+  smartypants: false,
+  renderer: blockRenderer
 })
+
+function markdown(text) {
+  if (!text) return ''
+  if (typeof text != 'string') text = String(text)
+  return marked(text)
+}
 
 function parseAddr(str, def) {
   if (!str) return def
@@ -39,6 +53,10 @@ function parseAddr(str, def) {
 
 function flattenPath(parts) {
   return '/' + parts.map(encodeURIComponent).join('/')
+}
+
+function encodeLink(url) {
+  return '/' + encodeURIComponent(url)
 }
 
 function link(parts, text, raw) {
@@ -358,7 +376,7 @@ module.exports = function (opts, cb) {
               text: data.text
             }, function (err, issue) {
               if (err) return cb(null, serveError(err))
-              cb(null, serveRedirect('/' + encodeURIComponent(issue.id)))
+              cb(null, serveRedirect(encodeLink(issue.id)))
             })
 
           default:
@@ -892,7 +910,7 @@ module.exports = function (opts, cb) {
                   pull(obj.read, pull.collect(function (err, bufs) {
                     if (err) return cb(err)
                     var buf = Buffer.concat(bufs, obj.length)
-                    cb(null, marked(buf.toString()))
+                    cb(null, markdown(buf.toString()))
                   }))
                 })
               : cat([
@@ -1118,9 +1136,8 @@ module.exports = function (opts, cb) {
         issues.createFeedStream({ project: repo.id }),
         pull.map(function (issue) {
           numIssues++
-          var issueHref = '/' + encodeURIComponent(issue.id)
           return '<section class="collapse">' +
-            '<a href="' + issueHref + '">' +
+            '<a href="' + encodeLink(issue.id) + '">' +
               escapeHTML(issue.title) +
               '<span class="issue-info">' +
                 new Date(issue.created_at).toLocaleString() +
@@ -1169,7 +1186,7 @@ module.exports = function (opts, cb) {
           cb(null,
             authorLink + ' opened this issue on ' + timestamp(issue.created_at) +
             '<hr/>' +
-            (issue.text ? marked(issue.text) : '') +
+            markdown(issue.text) +
             '</section>')
         })
       }),
@@ -1195,7 +1212,7 @@ module.exports = function (opts, cb) {
                   (changed == null ? '' : ' ' + (
                     changed ? 'reopened this issue' : 'closed this issue')) +
                   ' &middot; ' + msgTimeLink +
-                  marked(c.text) +
+                  markdown(c.text) +
                   '</section>'
               } else {
                 var text = c.text || (c.type + ' ' + msg.key)
