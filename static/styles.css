@@ -91,7 +91,7 @@ i {
   margin-top: .25em;
 }
 
-.right-bar button {
+.btn {
   font-size: 1em;
   border-radius: .5ex;
 
@@ -101,7 +101,7 @@ i {
   border-radius: .5ex;
   cursor: pointer;
 }
-.right-bar button:hover {
+.btn:hover {
   background-color: #f6f6f6;
 }
 
@@ -213,15 +213,21 @@ h3 .user-id {
   padding: .4ex .75ex;
   margin-right: .75ex;
   border-radius: .5ex;
-  color: white;
 }
 
 .open {
   background-color: #38ae67;
+  color: white;
+  font-weight: bold;
+}
+
+.btn.open:hover {
+  background-color: #2b9d58;
 }
 
 .closed {
   background-color: #d84a38;
+  color: white;
 }
 
 .mention-preview {

@@ -120,8 +120,8 @@ function renderNameForm(enabled, id, name, action, inputId, title, header) {
       '<input type="hidden" name="id" value="' +
         escapeHTML(id) + '">' +
       '<label class="name-toggle" for="' + inputId + '" ' +
-        'title="' + title + '"><i>✍</i></label>' +
-      '<input class="name-btn" type="submit" value="Rename">' +
+        'title="' + title + '"><i>✍</i></label> ' +
+      '<input class="btn name-btn" type="submit" value="Rename">' +
       header :
       header + '<br clear="all"/>'
     ) +
@@ -330,6 +330,20 @@ module.exports = function (opts, cb) {
             if (!data.id)
               return cb(null, serveError(new Error('Missing id'), 400))
             var msg = Issues.schemas.edit(data.id, {title: data.name})
+            return ssb.publish(msg, function (err) {
+              if (err) return cb(null, serveError(err))
+              cb(null, serveRedirect(req.url))
+            })
+
+          case 'comment':
+            if (!data.id)
+              return cb(null, serveError(new Error('Missing id'), 400))
+            // TODO: add ref mentions
+            var msg = schemas.post(data.text, data.id, data.branch || data.id)
+            if (data.open != null)
+              Issues.schemas.opens(msg, data.id)
+            if (data.close != null)
+              Issues.schemas.closes(msg, data.id)
             return ssb.publish(msg, function (err) {
               if (err) return cb(null, serveError(err))
               cb(null, serveRedirect(req.url))
@@ -664,16 +678,15 @@ module.exports = function (opts, cb) {
           pull.once(
             '<div class="repo-title">' +
             '<form class="right-bar" action="" method="post">' +
-              (isPublic
-              ? '<button disabled="disabled"><i>✌</i> Dig</button> '
-              : '<input type="hidden" name="vote" value="' +
+              '<button class="btn" ' +
+              (isPublic ? 'disabled="disabled"' : ' type="submit"') + '>' +
+                '<i>✌</i> ' + (!isPublic && upvoted ? 'Undig' : 'Dig') +
+                '</button>' +
+              (isPublic ? '<input type="hidden" name="vote" value="' +
                   (upvoted ? '0' : '1') + '">' +
                 '<input type="hidden" name="action" value="vote">' +
                 '<input type="hidden" name="id" value="' +
-                  escapeHTML(repo.id) + '">' +
-                '<button type="submit"><i>✌</i> ' +
-                  (upvoted ? 'Undig' : 'Dig') +
-              '</button>') + ' ' +
+                  escapeHTML(repo.id) + '">' : '') + ' ' +
               '<strong>' + link(digsPath, votes.upvotes) + '</strong>' +
             '</form>' +
             renderNameForm(!isPublic, repo.id, repoName, 'repo-name', null,
@@ -1138,6 +1151,7 @@ module.exports = function (opts, cb) {
   /* Issue */
 
   function serveRepoIssue(req, repo, issue, path) {
+    var isAuthor = (myId == issue.author) || (myId == repo.feed)
     return renderRepoPage(repo, null, cat([
       pull.once(
         renderNameForm(!isPublic, issue.id, issue.title, 'issue-title', null,
@@ -1173,32 +1187,49 @@ module.exports = function (opts, cb) {
           var c = msg.value.content
           switch (c.type) {
             case 'post':
-              if (c.root == issue.id)
+              if (c.root == issue.id) {
+                var changed = issues.isStatusChanged(msg, issue)
                 return '<section class="collapse">' +
-                  authorLink + ' &middot; ' +
-                  msgTimeLink +
+                  authorLink +
+                  (changed == null ? '' : ' ' + (
+                    changed ? 'reopened this issue' : 'closed this issue')) +
+                  ' &middot; ' + msgTimeLink +
                   marked(c.text) +
                   '</section>'
-              else
+              } else {
+                var text = c.text || (c.type + ' ' + msg.key)
                 return '<section class="collapse mention-preview">' +
                   authorLink + ' mentioned this issue in ' +
-                  link([msg.key], c.text || c.type) +
+                  link([msg.key], String(text).substr(0, 140)) +
                   '</section>'
+              }
             case 'issue-edit':
               return '<section class="collapse">' +
                 (c.title == null ? '' :
                   authorLink + ' renamed this issue to <q>' +
                   escapeHTML(c.title) + '</q>') +
+                  ' &middot; ' + msgTimeLink +
                 '</section>'
             default:
               return '<section class="collapse">' +
-                authorLink + ' &middot; ' +
-                msgTimeLink +
+                authorLink +
+                ' &middot; ' + msgTimeLink +
                 json(c) +
                 '</section>'
           }
         })
-      )
+      ),
+      pull.once(isPublic ? '' : '<section><form action="" method="post">' +
+        '<input type="hidden" name="action" value="comment">' +
+        '<input type="hidden" name="id" value="' + issue.id + '">' +
+        '<textarea name="text" class="wide-input" rows="6" cols="69"></textarea>' +
+        (isAuthor ?
+          '<input type="submit" class="btn"' +
+          ' name="' + (issue.open ? 'close' : 'open') + '"' +
+          ' value="' + (issue.open ? 'Close issue' : 'Reopen issue') + '"' +
+          '/>' : '') +
+        '<input type="submit" class="btn open" value="Comment" />' +
+      '</form></section>')
     ]))
   }
 
