@@ -1025,7 +1025,7 @@ module.exports = function (opts, cb) {
                   pull(obj.read, pull.collect(function (err, bufs) {
                     if (err) return cb(err)
                     var buf = Buffer.concat(bufs, obj.length)
-                    markdown(buf.toString(), repo, cb)
+                    cb(null, markdown(buf.toString(), repo))
                   }))
                 })
               : cat([
