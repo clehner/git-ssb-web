@@ -66,11 +66,13 @@ function encodeLink(url) {
   return '/' + encodeURIComponent(url)
 }
 
-function link(parts, text, raw) {
+function link(parts, text, raw, props) {
   var href = flattenPath(parts)
   if (text == null) text = parts[parts.length-1]
   if (!raw) text = escapeHTML(text)
-  return '<a href="' + escapeHTML(href) + '">' + text + '</a>'
+  return '<a href="' + escapeHTML(href) + '"' +
+    (props ? ' ' + props : '') +
+    '>' + text + '</a>'
 }
 
 function timestamp(time) {
@@ -448,7 +450,7 @@ module.exports = function (opts, cb) {
     else if (ref.isMsgId(dir))
       return serveMessage(req, dir, dirs.slice(1))
     else if (ref.isFeedId(dir))
-      return serveUserPage(dir)
+      return serveUserPage(dir, dirs.slice(1))
     else
       return serveFile(req, dirs)
   }
@@ -630,16 +632,58 @@ module.exports = function (opts, cb) {
     return serveTemplate('git ssb')(renderFeed())
   }
 
-  function serveUserPage(feedId) {
+  function serveUserPage(feedId, dirs) {
+    switch (dirs[0]) {
+      case undefined:
+      case '':
+      case 'activity':
+        return serveUserActivity(feedId)
+      case 'repos':
+        return serveUserRepos(feedId)
+    }
+  }
+
+  function renderUserPage(feedId, page, body) {
     return serveTemplate(feedId)(cat([
       readOnce(function (cb) {
         about.getName(feedId, function (err, name) {
           cb(null, '<h2>' + link([feedId], name) +
-          '<code class="user-id">' + feedId + '</code></h2>')
+          '<code class="user-id">' + feedId + '</code></h2>' +
+          '<nav>' +
+            link([feedId], 'Activity', true,
+              page == 'activity' ? ' class="active"' : '') +
+            link([feedId, 'repos'], 'Repos', true,
+              page == 'repos' ? ' class="active"' : '') +
+          '</nav>')
         })
       }),
-      renderFeed(feedId),
+      body,
     ]))
+  }
+
+  function serveUserActivity(feedId) {
+    return renderUserPage(feedId, 'activity', renderFeed(feedId))
+  }
+
+  function serveUserRepos(feedId) {
+    return renderUserPage(feedId, 'repos', pull(
+      ssb.messagesByType({
+        type: 'git-repo',
+        reverse: true
+      }),
+      pull.filter(function (msg) {
+        return msg.value.author == feedId
+      }),
+      pull.take(20),
+      paramap(function (msg, cb) {
+        getRepoName(about, feedId, msg.key, function (err, repoName) {
+          if (err) return cb(err)
+          cb(null, '<section class="collapse">' +
+            link([msg.key], repoName) +
+          '</section>')
+        })
+      }, 8)
+    ))
   }
 
   /* Message */
@@ -781,12 +825,12 @@ module.exports = function (opts, cb) {
               'Rename the repo',
               '<h2>' + link([repo.feed], authorName) + ' / ' +
                 link([repo.id], repoName) + '</h2>') +
-            '</div><div class="repo-nav">' + link([repo.id], 'Code') +
+            '</div><nav>' + link([repo.id], 'Code') +
               link([repo.id, 'activity'], 'Activity') +
               link([repo.id, 'commits', branch || ''], 'Commits') +
               link([repo.id, 'issues'], 'Issues') +
               gitLink +
-            '</div>'),
+            '</nav>'),
           body
         ])))
       })

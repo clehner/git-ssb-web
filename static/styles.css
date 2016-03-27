@@ -148,18 +148,22 @@ label {
   background-color: #f6f6f6;
 }
 
-.repo-nav {
-  margin: 1em 0 1ex 0;
+nav {
+  margin: .5em 0 1ex 0;
 }
 
-.repo-nav a {
+nav a {
   border-radius: .5ex;
   padding: 0 .5ex;
   display: inline-block;
   margin-right: .5ex;
 }
-.repo-nav a:hover {
+nav a:hover {
   color: #1a86ff;
+}
+
+nav a.active {
+  text-decoration: underline;
 }
 
 .raw-link {
