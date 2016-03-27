@@ -146,6 +146,23 @@ function renderNameForm(enabled, id, name, action, inputId, title, header) {
   '</form>'
 }
 
+function renderPostForm(placeholder, rows) {
+  return '<input type="radio" class="tab-radio" id="tab1" name="tab" checked="checked"/>' +
+  '<input type="radio" class="tab-radio" id="tab2" name="tab"/>' +
+  '<div class="tab-links">' +
+    '<label for="tab1" id="write-tab-link" class="tab1-link">Write</label>' +
+    '<label for="tab2" id="preview-tab-link" class="tab2-link">Preview</label>' +
+  '</div>' +
+  '<div id="write-tab" class="tab1">' +
+    '<textarea id="post-text" name="text" class="wide-input"' +
+    ' rows="' + (rows||4) + '" cols="77"' +
+    (placeholder ? ' placeholder="' + placeholder + '"' : '') +
+    '></textarea>' +
+  '</div>' +
+  '<div class="preview-text tab2" id="preview-tab"></div>' +
+  '<script>' + issueCommentScript + '</script>'
+}
+
 function wrap(tag) {
   return function (read) {
     return cat([
@@ -249,7 +266,7 @@ var issueCommentScript = '(' + function () {
         $('preview-tab').innerHTML = responseText
       }
       send('action=markdown&text=' +
-        encodeURIComponent($('comment-text').value))
+        encodeURIComponent($('post-text').value))
     }
   }
 }.toString() + ')()'
@@ -1200,10 +1217,10 @@ module.exports = function (opts, cb) {
   function serveRepoNewIssue(repo, issueId, path) {
     return renderRepoPage(repo, '', pull.once(
       '<h3>New Issue</h3>' +
-      '<section><form class="new-issue" action="" method="post">' +
+      '<section><form action="" method="post">' +
       '<input type="hidden" name="action" value="new-issue">' +
       '<p><input class="wide-input" name="title" placeholder="Issue Title" size="77" /></p>' +
-      '<p><textarea class="wide-input" name="text" placeholder="Description" rows="12" cols="77"></textarea></p>' +
+      renderPostForm('Description', 8) +
       '<button type="submit" class="btn">Create</button>' +
       '</form></section>'))
   }
@@ -1288,28 +1305,17 @@ module.exports = function (opts, cb) {
 
     function renderCommentForm(cb) {
       cb(null, '<section><form action="" method="post">' +
-        '<input type="radio" class="tab-radio" id="tab1" name="tab" checked="checked"/>' +
-        '<input type="radio" class="tab-radio" id="tab2" name="tab"/>' +
-        '<div class="tab-links">' +
-          '<label for="tab1" id="write-tab-link" class="tab1-link">Write</label>' +
-          '<label for="tab2" id="preview-tab-link" class="tab2-link">Preview</label>' +
-        '</div>' +
-        '<div id="write-tab" class="tab1">' +
         '<input type="hidden" name="action" value="comment">' +
         '<input type="hidden" name="id" value="' + issue.id + '">' +
         '<input type="hidden" name="branch" value="' + newestMsg.key + '">' +
-        '<textarea id="comment-text" name="text" class="wide-input" rows="4" cols="77"></textarea>' +
-        '</div>' +
-        '<div class="preview-text tab2" id="preview-tab">' +
-        '</div>' +
+        renderPostForm() +
+        '<input type="submit" class="btn open" value="Comment" />' +
         (isAuthor ?
           '<input type="submit" class="btn"' +
           ' name="' + (issue.open ? 'close' : 'open') + '"' +
           ' value="' + (issue.open ? 'Close issue' : 'Reopen issue') + '"' +
           '/>' : '') +
-        '<input type="submit" class="btn open" value="Comment" />' +
-      '<script>' + issueCommentScript + '</script>' +
-      '</section></form>')
+        '</form></section>')
     }
   }
 
