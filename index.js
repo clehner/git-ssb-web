@@ -1084,6 +1084,12 @@ module.exports = function (opts, cb) {
   function serveRepoUpdate(req, repo, id, msg, path) {
     var raw = req._u.query.raw != null
 
+    if (raw)
+      return renderRepoPage(repo, null, pull.once(
+       '<a href="?" class="raw-link header-align">Info</a>' +
+        '<h3>Update</h3>' +
+       '<section class="collapse">' + json(msg) + '</section>'))
+
     // convert packs to old single-object style
     if (msg.content.indexes) {
       for (var i = 0; i < msg.content.indexes.length; i++) {
@@ -1094,49 +1100,44 @@ module.exports = function (opts, cb) {
       }
     }
 
-    return renderRepoPage(repo, null,
-      raw ? pull.once(
-       '<a href="?" class="raw-link header-align">Info</a>' +
+    return renderRepoPage(repo, null, cat([
+      pull.once(
+        '<a href="?raw" class="raw-link header-align">Data</a>' +
         '<h3>Update</h3>' +
-       '<section class="collapse">' + json(msg) + '</section>')
-      : cat([
-        pull.once(
-          '<a href="?raw" class="raw-link header-align">Data</a>' +
-          '<h3>Update</h3>' +
-          renderRepoUpdate(repo, {key: id, value: msg}, true) +
-          (msg.content.objects ? '<h3>Objects</h3>' +
-            objsArr(msg.content.objects).map(renderObject).join('\n') : '') +
-          (msg.content.packs ? '<h3>Packs</h3>' +
-            msg.content.packs.map(renderPack).join('\n') : '')),
-        cat(!msg.content.packs ? [] : [
-          pull.once('<h3>Commits</h3>'),
-          pull(
-            pull.values(msg.content.packs),
-            paramap(function (pack, cb) {
-              var key = pack.pack.link
-              ssb.blobs.want(key, function (err, got) {
-                if (err) cb(err)
-                else if (!got) cb(null, pull.once('Missing blob ' + key))
-                else cb(null, ssb.blobs.get(key))
-              })
-            }, 8),
-            pull.map(function (readPack, cb) {
-              return gitPack.decode({}, repo, cb, readPack)
-            }),
-            pull.flatten(),
-            paramap(function (obj, cb) {
-              if (obj.type == 'commit')
-                Repo.getCommitParsed(obj, cb)
-              else
-                pull(obj.read, pull.drain(null, cb))
-            }, 8),
-            pull.filter(),
-            pull.map(function (commit) {
-              return renderCommit(repo, commit)
+        renderRepoUpdate(repo, {key: id, value: msg}, true) +
+        (msg.content.objects ? '<h3>Objects</h3>' +
+          objsArr(msg.content.objects).map(renderObject).join('\n') : '') +
+        (msg.content.packs ? '<h3>Packs</h3>' +
+          msg.content.packs.map(renderPack).join('\n') : '')),
+      cat(!msg.content.packs ? [] : [
+        pull.once('<h3>Commits</h3>'),
+        pull(
+          pull.values(msg.content.packs),
+          paramap(function (pack, cb) {
+            var key = pack.pack.link
+            ssb.blobs.want(key, function (err, got) {
+              if (err) cb(err)
+              else if (!got) cb(null, pull.once('Missing blob ' + key))
+              else cb(null, ssb.blobs.get(key))
             })
-          )
-        ])
-      ]))
+          }, 8),
+          pull.map(function (readPack, cb) {
+            return gitPack.decode({}, repo, cb, readPack)
+          }),
+          pull.flatten(),
+          paramap(function (obj, cb) {
+            if (obj.type == 'commit')
+              Repo.getCommitParsed(obj, cb)
+            else
+              pull(obj.read, pull.drain(null, cb))
+          }, 8),
+          pull.filter(),
+          pull.map(function (commit) {
+            return renderCommit(repo, commit)
+          })
+        )
+      ])
+    ]))
   }
 
   function renderObject(obj) {
