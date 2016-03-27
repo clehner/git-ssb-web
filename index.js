@@ -287,11 +287,6 @@ var msgTypes = {
   'issue': true
 }
 
-var refLabels = {
-  heads: 'Branches',
-  tags: 'Tags'
-}
-
 var imgMimes = {
   png: 'image/png',
   jpeg: 'image/jpeg',
@@ -924,33 +919,22 @@ module.exports = function (opts, cb) {
   /* Repo tree */
 
   function revMenu(repo, currentName) {
-    var currentGroup
-    return cat([
-      pull.once('<select name="rev" onchange="this.form.submit()">'),
-      pull(
-        repo.refs(),
-        pull.map(function (ref) {
-          var m = ref.name.match(/^refs\/([^\/]*)\/(.*)$/) || [,, ref.name]
-          var group = m[1]
-          var name = m[2]
-
-          var optgroup = (group === currentGroup) ? '' :
-            (currentGroup ? '</optgroup>' : '') +
-            '<optgroup label="' + (refLabels[group] || group) + '">'
-          currentGroup = group
-          var selected = (name == currentName) ? ' selected="selected"' : ''
-          var htmlName = escapeHTML(name)
-          return optgroup +
-            '<option value="' + htmlName + '"' + selected + '>' +
-              htmlName + '</option>'
-        })
-      ),
-      readOnce(function (cb) {
-        cb(null, currentGroup ? '</optgroup>' : '')
-      }),
-      pull.once('</select> ' +
-        '<noscript><input type="submit" value="Go" /></noscript>')
-    ])
+    return readOnce(function (cb) {
+      repo.getRefNames(true, function (err, refs) {
+        if (err) return cb(err)
+        cb(null, '<select name="rev" onchange="this.form.submit()">' +
+          Object.keys(refs).map(function (group) {
+            return '<optgroup label="' + group + '">' +
+              refs[group].map(function (name) {
+                var htmlName = escapeHTML(name)
+                return '<option value="' + htmlName + '"' +
+                  (name == currentName ? ' selected="selected"' : '') +
+                  '>' + htmlName + '</option>'
+              }).join('') + '</optgroup>'
+          }).join('') +
+          '</select><noscript> <input type="submit" value="Go"/></noscript>')
+      })
+    })
   }
 
   function renderRepoLatest(repo, rev) {
