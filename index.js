@@ -1175,7 +1175,7 @@ module.exports = function (opts, cb) {
       '<input type="hidden" name="action" value="new-issue">' +
       '<p><input class="wide-input" name="title" placeholder="Issue Title" size="69" /></p>' +
       '<p><textarea class="wide-input" name="text" placeholder="Description" rows="12" cols="69"></textarea></p>' +
-      '<button type="submit">Create</button>' +
+      '<button type="submit" class="btn">Create</button>' +
       '</form></section>'))
   }
 
