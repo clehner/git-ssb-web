@@ -292,6 +292,8 @@ module.exports = function (opts, cb) {
 
   function handleRequest(req) {
     var u = req._u = url.parse(req.url, true)
+    var dirs = u.pathname.slice(1).split(/\/+/).map(tryDecodeURIComponent)
+    var dir = dirs[0]
 
     if (req.method == 'POST') {
       if (isPublic)
@@ -349,26 +351,23 @@ module.exports = function (opts, cb) {
               cb(null, serveRedirect(req.url))
             })
 
+          case 'new-issue':
+            return issues.new({
+              project: dir,
+              title: data.title,
+              text: data.text
+            }, function (err, issue) {
+              if (err) return cb(null, serveError(err))
+              cb(null, serveRedirect('/' + encodeURIComponent(issue.id)))
+            })
+
           default:
-            if (path == 'issues,new') {
-              issues.new({
-                project: repo.id,
-                title: data.title,
-                text: data.text
-              }, function (err, issue) {
-                if (err) return cb(null, serveError(err))
-                cb(null, serveRedirect('/' + encodeURIComponent(issue.id)))
-              })
-            } else {
-              cb(null, servePlainError(400, 'What are you trying to do?'))
-            }
+            cb(null, servePlainError(400, 'What are you trying to do?'))
           }
         })
       })
     }
 
-    var dirs = u.pathname.slice(1).split(/\/+/).map(tryDecodeURIComponent)
-    var dir = dirs[0]
     if (dir == '')
       return serveIndex(req)
     else if (ref.isBlobId(dir))
@@ -575,7 +574,7 @@ module.exports = function (opts, cb) {
           case 'issue':
             return getRepo(c.project, function (err, repo) {
               if (err) return cb(null, serveRepoNotFound(c.project, err))
-              issues.get({key: id, value: msg}, function (err, issue) {
+              issues.get(id, function (err, issue) {
                 if (err) return cb(null, serveError(err))
                 cb(null, serveRepoIssue(req, Repo(repo), issue, path))
               })
@@ -1112,7 +1111,7 @@ module.exports = function (opts, cb) {
       pull.once(
         (isPublic ? '' :
           '<div class="right-bar">' + link([repo.id, 'issues', 'new'],
-            '<button>&plus; New Issue</button>', true) +
+            '<button class="btn">&plus; New Issue</button>', true) +
           '</div>') +
         '<h3>Issues</h3>'),
       pull(
@@ -1142,6 +1141,7 @@ module.exports = function (opts, cb) {
     return renderRepoPage(repo, '', pull.once(
       '<h3>New Issue</h3>' +
       '<section><form class="new-issue" action="" method="post">' +
+      '<input type="hidden" name="action" value="new-issue">' +
       '<p><input class="wide-input" name="title" placeholder="Issue Title" size="69" /></p>' +
       '<p><textarea class="wide-input" name="text" placeholder="Description" rows="12" cols="69"></textarea></p>' +
       '<button type="submit">Create</button>' +
@@ -1169,7 +1169,8 @@ module.exports = function (opts, cb) {
           cb(null,
             authorLink + ' opened this issue on ' + timestamp(issue.created_at) +
             '<hr/>' +
-            marked(issue.text) + '</section>')
+            (issue.text ? marked(issue.text) : '') +
+            '</section>')
         })
       }),
       // render posts and edits
