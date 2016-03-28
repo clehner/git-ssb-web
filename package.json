@@ -19,7 +19,7 @@
     "ssb-msg-schemas": "^6.1.0",
     "ssb-ref": "^2.2.2",
     "ssb-reconnect": "^0.1.0",
-    "ssb-issues": "^0.0.2",
+    "ssb-issues": "^0.0.4",
     "stream-to-pull-stream": "^1.6.6"
   },
   "homepage": "http://git-ssb.celehner.com/%25q5d5Du%2B9WkaSdjc8aJPZm%2BjMrqgo0tmfR%2BRcX5ZZ6H4%3D.sha256",
