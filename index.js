@@ -25,7 +25,7 @@ blockRenderer.urltransform = function (url) {
   if (ref.isLink(url))
     return encodeLink(url)
   if (/^[0-9a-f]{40}$/.test(url) && this.options.repo)
-    return encodeLink([this.options.repo.id, 'tree', url])
+    return encodeLink([this.options.repo.id, 'commit', url])
   return url
 }
 
@@ -42,8 +42,10 @@ marked.setOptions({
 })
 
 // hack to make git link mentions work
-new marked.InlineLexer(1, marked.defaults).rules.mention =
+var mdRules = new marked.InlineLexer(1, marked.defaults).rules
+mdRules.mention =
   /^(\s)?([@%&][A-Za-z0-9\._\-+=\/]*[A-Za-z0-9_\-+=\/]|[0-9a-f]{40})/
+mdRules.text = /^[\s\S]+?(?=[\\<!\[_*`]| {2,}\n| [@%&]|[0-9a-f]{40}|$)/
 
 function markdown(text, repo, cb) {
   if (!text) return ''
@@ -277,8 +279,9 @@ var issueCommentScript = '(' + function () {
       onload = function() {
         $('preview-tab').innerHTML = responseText
       }
-      send('action=markdown&repo=' + $('repo-id').value + '&text=' +
-        encodeURIComponent($('post-text').value))
+      send('action=markdown' +
+        '&repo=' + encodeURIComponent($('repo-id').value) +
+        '&text=' + encodeURIComponent($('post-text').value))
     }
   }
 }.toString() + ')()'
