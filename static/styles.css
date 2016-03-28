@@ -212,6 +212,20 @@ h3 .user-id {
   line-height: inherit;
 }
 
+/* issues */
+
+.issue-state {
+  margin-right: .25ex;
+}
+
+.issue-state-open {
+  color: #38ae67;
+}
+
+.issue-state-closed {
+  color: #d84a38;
+}
+
 /* issue */
 
 .issue-status {

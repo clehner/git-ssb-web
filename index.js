@@ -106,6 +106,10 @@ function escapeHTMLStream() {
   })
 }
 
+function ucfirst(str) {
+  return str[0].toLocaleUpperCase() + str.slice(1)
+}
+
 function table(props) {
   return function (read) {
     return cat([
@@ -1311,12 +1315,15 @@ module.exports = function (opts, cb) {
           '</nav>'),
       pull(
         issues.createFeedStream({ project: repo.id }),
-        state == 'all' ? null : pull.filter(function (issue) {
-          return (state == 'closed') == !issue.open
+        pull.filter(function (issue) {
+          return state == 'all' ? true : (state == 'closed') == !issue.open
         }),
         pull.map(function (issue) {
           numIssues++
+          var state = (issue.open ? 'open' : 'closed')
           return '<section class="collapse">' +
+            '<i class="issue-state issue-state-' + state + '"' +
+              ' title="' + ucfirst(state) + '">◾</i> ' +
             '<a href="' + encodeLink(issue.id) + '">' +
               escapeHTML(issue.title) +
               '<span class="right-bar">' +
