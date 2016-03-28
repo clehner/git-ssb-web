@@ -792,7 +792,7 @@ module.exports = function (opts, cb) {
         switch (path[1]) {
           case '':
           case undefined:
-            return serveRepoIssues(repo, branch, filePath)
+            return serveRepoIssues(req, repo, branch, filePath)
           case 'new':
             if (filePath.length == 0)
               return serveRepoNewIssue(repo)
@@ -1291,17 +1291,29 @@ module.exports = function (opts, cb) {
 
   /* Issues */
 
-  function serveRepoIssues(repo, issueId, path) {
+  function serveRepoIssues(req, repo, issueId, path) {
     var numIssues = 0
+    var state = req._u.query.state || 'open'
     return renderRepoPage(repo, '', cat([
       pull.once(
         (isPublic ? '' :
           '<div class="right-bar">' + link([repo.id, 'issues', 'new'],
             '<button class="btn">&plus; New Issue</button>', true) +
           '</div>') +
-        '<h3>Issues</h3>'),
+        '<h3>Issues</h3>' +
+          '<nav>' +
+              '<a href="?state=open"' +
+                (state == 'open' ? ' class="active"' : '') + '>Open</a>' +
+              '<a href="?state=closed"' +
+                (state == 'closed' ? ' class="active"' : '') + '>Closed</a>' +
+              '<a href="?state=all"' +
+                (state == 'all' ? ' class="active"' : '') + '>All</a>' +
+          '</nav>'),
       pull(
         issues.createFeedStream({ project: repo.id }),
+        state == 'all' ? null : pull.filter(function (issue) {
+          return (state == 'closed') == !issue.open
+        }),
         pull.map(function (issue) {
           numIssues++
           return '<section class="collapse">' +
