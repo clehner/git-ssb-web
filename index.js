@@ -1372,6 +1372,11 @@ module.exports = function (opts, cb) {
                   link([msg.key], String(text).substr(0, 140)) +
                   '</section>'
               }
+            case 'issue':
+              return '<section class="collapse mention-preview">' +
+                authorLink + ' mentioned this issue in ' +
+                link([msg.key], String(c.title || msg.key).substr(0, 140)) +
+                '</section>'
             case 'issue-edit':
               return '<section class="collapse">' +
                 (c.title == null ? '' :
