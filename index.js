@@ -1044,9 +1044,8 @@ module.exports = function (opts, cb) {
           if (err) return cb(err)
           var commitPath = [repo.id, 'commit', commit.id]
           var treePath = [repo.id, 'tree', commit.tree]
-          cb(null,
-            '<p><strong>' + link(commitPath, commit.title) +
-              '</strong></p>' +
+          cb(null, '<section class="collapse">' +
+            '<strong>' + link(commitPath, commit.title) + '</strong>' +
             pre(commit.body) +
             '<p>' +
             (commit.separateAuthor ? escapeHTML(commit.author.name) +
@@ -1057,9 +1056,8 @@ module.exports = function (opts, cb) {
             '<p>' + commit.parents.map(function (id) {
               return 'Parent: ' + link([repo.id, 'commit', id], id)
             }).join('<br>') + '</p>' +
-            '<p>' +
-              (commit.tree ? 'Tree: ' + link(treePath) : 'No tree') +
-            '</p>')
+            (commit.tree ? 'Tree: ' + link(treePath) : 'No tree') +
+            '</section>')
         })
       })
     ]))
