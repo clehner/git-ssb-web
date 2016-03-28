@@ -209,6 +209,26 @@ function readOnce(fn) {
   }
 }
 
+function compareMsgs(a, b) {
+  return (a.value.timestamp - b.value.timestamp) || (a.key - b.key)
+}
+
+function pullSort(comparator) {
+  return function (read) {
+    return readNext(function (cb) {
+      pull(read, pull.collect(function (err, items) {
+        if (err) return cb(err)
+        items.sort(comparator)
+        cb(null, pull.values(items))
+      }))
+    })
+  }
+}
+
+function sortMsgs() {
+  return pullSort(compareMsgs)
+}
+
 function tryDecodeURIComponent(str) {
   if (!str || (str[0] == '%' && ref.isBlobId(str)))
     return str
@@ -1347,6 +1367,7 @@ module.exports = function (opts, cb) {
         }),
         pull.unique('key'),
         addAuthorName(about),
+        sortMsgs(),
         pull.map(function (msg) {
           var authorLink = link([msg.value.author], msg.authorName)
           var msgTimeLink = link([msg.key],
