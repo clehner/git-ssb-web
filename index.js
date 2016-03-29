@@ -270,6 +270,17 @@ function addAuthorName(about) {
   }, 8)
 }
 
+function getMention(msg, id) {
+  if (msg.key == id) return msg
+  var mentions = msg.value.content.mentions
+  if (mentions) for (var i = 0; i < mentions.length; i++) {
+    var mention = mentions[i]
+    if (mention.link == id)
+      return mention
+  }
+  return null
+}
+
 var hasOwnProp = Object.prototype.hasOwnProperty
 
 function getContentType(filename) {
@@ -1433,6 +1444,31 @@ module.exports = function (opts, cb) {
                   escapeHTML(c.title) + '</q>') +
                   ' &middot; ' + msgTimeLink +
                 '</section>'
+            case 'git-update':
+              var mention = issues.getMention(msg, issue)
+              if (mention) {
+                var commitLink = link([repo.id, 'commit', mention.object],
+                  mention.label || mention.object)
+                return '<section class="collapse">' +
+                  authorLink + ' ' +
+                  (mention.open ? 'reopened this issue' :
+                    'closed this issue') +
+                  ' &middot; ' + msgTimeLink + '<br/>' +
+                  commitLink +
+                  '</section>'
+              } else if ((mention = getMention(msg, issue.id))) {
+                var commitLink = link(mention.object ?
+                  [repo.id, 'commit', mention.object] : [msg.key],
+                  mention.label || mention.object || msg.key)
+                return '<section class="collapse">' +
+                  authorLink + ' mentioned this issue' +
+                  ' &middot; ' + msgTimeLink + '<br/>' +
+                  commitLink +
+                  '</section>'
+              } else {
+                // fallthrough
+              }
+
             default:
               return '<section class="collapse">' +
                 authorLink +
