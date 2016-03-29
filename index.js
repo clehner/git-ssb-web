@@ -1122,7 +1122,7 @@ module.exports = function (opts, cb) {
       return renderRepoPage(repo, null, pull.once(
        '<a href="?" class="raw-link header-align">Info</a>' +
         '<h3>Update</h3>' +
-       '<section class="collapse">' + json(msg) + '</section>'))
+       '<section class="collapse">' + json({key: id, value: msg}) + '</section>'))
 
     // convert packs to old single-object style
     if (msg.content.indexes) {
