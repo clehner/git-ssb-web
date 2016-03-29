@@ -387,7 +387,9 @@ module.exports = function (opts, cb) {
 
   function handleRequest(req) {
     var u = req._u = url.parse(req.url, true)
-    var dirs = u.pathname.slice(1).split(/\/+/).map(tryDecodeURIComponent)
+    var path = u.pathname.slice(1)
+    var dirs = ref.isLink(path) ? [path] :
+      path.split(/\/+/).map(tryDecodeURIComponent)
     var dir = dirs[0]
 
     if (req.method == 'POST') {
