@@ -812,10 +812,24 @@ module.exports = function (opts, cb) {
       return serveRedirect(url.format(req._u))
     }
 
-    var branch = path[1] || defaultBranch
+    // get branch
+    return path[1] ?
+      serveRepoPage2(req, repo, path) :
+      readNext(function (cb) {
+        repo.getSymRef('HEAD', true, function (err, value) {
+          if (err) return cb(err)
+          path[1] = value || null
+          cb(null, serveRepoPage2(req, repo, path))
+        })
+      })
+  }
+
+  function serveRepoPage2(req, repo, path) {
+    var branch = path[1]
     var filePath = path.slice(2)
     switch (path[0]) {
       case undefined:
+      case '':
         return serveRepoTree(repo, branch, [])
       case 'activity':
         return serveRepoActivity(repo, branch)
@@ -833,12 +847,12 @@ module.exports = function (opts, cb) {
         return serveRepoDigs(repo)
       case 'issues':
         switch (path[1]) {
-          case '':
-          case undefined:
-            return serveRepoIssues(req, repo, branch, filePath)
           case 'new':
             if (filePath.length == 0)
               return serveRepoNewIssue(repo)
+            break
+          default:
+            return serveRepoIssues(req, repo, branch, filePath)
         }
       default:
         return serve404(req)
@@ -853,7 +867,7 @@ module.exports = function (opts, cb) {
     ]))
   }
 
-  function renderRepoPage(repo, branch, body) {
+  function renderRepoPage(repo, page, branch, body) {
     var gitUrl = 'ssb://' + repo.id
     var gitLink = '<input class="clone-url" readonly="readonly" ' +
       'value="' + gitUrl + '" size="61" ' +
@@ -900,7 +914,32 @@ module.exports = function (opts, cb) {
     })
   }
 
+  function serveEmptyRepo(repo) {
+    if (repo.feed != myId)
+      return renderRepoPage(repo, null, pull.once(
+        '<section>' +
+        '<h3>Empty repository</h3>' +
+        '</section>'))
+
+    var gitUrl = 'ssb://' + repo.id
+    return renderRepoPage(repo, null, pull.once(
+      '<section>' +
+      '<h3>Getting started</h3>' +
+      '<h4>Create a new repository</h4><pre>' +
+      'touch README.md\n' +
+      'git init\n' +
+      'git add README.md\n' +
+      'git commit -m "Initial commit"\n' +
+      'git remote add origin ' + gitUrl + '\n' +
+      'git push -u origin master</pre>\n' +
+      '<h4>Push an existing repository</h4>\n' +
+      '<pre>git remote add origin ' + gitUrl + '\n' +
+      'git push -u origin master</pre>' +
+      '</section>'))
+  }
+
   function serveRepoTree(repo, rev, path) {
+    if (!rev) return serveEmptyRepo(repo)
     var type = repo.isCommitHash(rev) ? 'Tree' : 'Branch'
     return renderRepoPage(repo, rev, cat([
       pull.once('<section><form action="" method="get">' +
