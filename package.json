@@ -16,6 +16,7 @@
     "ssb-git-repo": "^1.4.0",
     "ssb-keys": "^5.0.0",
     "ssb-marked": "^0.5.4",
+    "ssb-mentions": "^0.0.1",
     "ssb-msg-schemas": "^6.1.0",
     "ssb-ref": "^2.2.2",
     "ssb-reconnect": "^0.1.0",

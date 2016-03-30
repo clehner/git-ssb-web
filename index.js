@@ -18,6 +18,7 @@ var schemas = require('ssb-msg-schemas')
 var Issues = require('ssb-issues')
 var paramap = require('pull-paramap')
 var gitPack = require('pull-git-pack')
+var Mentions = require('ssb-mentions')
 
 // render links to git objects and ssb objects
 var blockRenderer = new marked.Renderer()
@@ -456,25 +457,27 @@ module.exports = function (opts, cb) {
             if (!data.id)
               return cb(null, serveError(new Error('Missing id'), 400))
 
-            // TODO: add ref mentions
             var msg = schemas.post(data.text, data.id, data.branch || data.id)
             if (data.open != null)
               Issues.schemas.opens(msg, data.id)
             if (data.close != null)
               Issues.schemas.closes(msg, data.id)
+            var mentions = Mentions(data.text)
+            if (mentions.length)
+              msg.mentions = mentions
             return ssb.publish(msg, function (err) {
               if (err) return cb(null, serveError(err))
               cb(null, serveRedirect(req.url))
             })
 
           case 'new-issue':
-            return issues.new({
-              project: dir,
-              title: data.title,
-              text: data.text
-            }, function (err, issue) {
+            var msg = Issues.schemas.new(dir, data.title, data.text)
+            var mentions = Mentions(data.text)
+            if (mentions.length)
+              msg.mentions = mentions
+            return ssb.publish(msg, function (err, msg) {
               if (err) return cb(null, serveError(err))
-              cb(null, serveRedirect(encodeLink(issue.id)))
+              cb(null, serveRedirect(encodeLink(msg.key)))
             })
 
           case 'markdown':
