@@ -1299,7 +1299,7 @@ module.exports = function (opts, cb) {
   }
 
   function serveBlobNotFound(repoId, err) {
-    return serveTemplate(400, 'Blob not found', pull.values([
+    return serveTemplate('Blob not found', 404, pull.values([
       '<h2>Blob not found</h2>',
       '<p>Blob in repo ' + link([repoId]) + ' was not found</p>',
       '<pre>' + escapeHTML(err.stack) + '</pre>'
