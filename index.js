@@ -914,10 +914,15 @@ module.exports = function (opts, cb) {
               'Rename the repo',
               '<h2>' + link([repo.feed], authorName) + ' / ' +
                 link([repo.id], repoName) + '</h2>') +
-            '</div><nav>' + link([repo.id], 'Code') +
-              link([repo.id, 'activity'], 'Activity') +
-              link([repo.id, 'commits', branch || ''], 'Commits') +
-              link([repo.id, 'issues'], 'Issues') +
+            '</div><nav>' +
+              link([repo.id], 'Code', true,
+                page == 'code' ? ' class="active"' : '') +
+              link([repo.id, 'activity'], 'Activity', true,
+                page == 'activity' ? ' class="active"' : '') +
+              link([repo.id, 'commits', branch || ''], 'Commits', true,
+                page == 'commits' ? ' class="active"' : '') +
+              link([repo.id, 'issues'], 'Issues', true,
+                page == 'issues' ? ' class="active"' : '') +
               gitLink +
             '</nav>'),
           body
@@ -928,13 +933,13 @@ module.exports = function (opts, cb) {
 
   function serveEmptyRepo(repo) {
     if (repo.feed != myId)
-      return renderRepoPage(repo, null, pull.once(
+      return renderRepoPage(repo, 'code', null, pull.once(
         '<section>' +
         '<h3>Empty repository</h3>' +
         '</section>'))
 
     var gitUrl = 'ssb://' + repo.id
-    return renderRepoPage(repo, null, pull.once(
+    return renderRepoPage(repo, 'code', null, pull.once(
       '<section>' +
       '<h3>Getting started</h3>' +
       '<h4>Create a new repository</h4><pre>' +
@@ -953,7 +958,7 @@ module.exports = function (opts, cb) {
   function serveRepoTree(repo, rev, path) {
     if (!rev) return serveEmptyRepo(repo)
     var type = repo.isCommitHash(rev) ? 'Tree' : 'Branch'
-    return renderRepoPage(repo, rev, cat([
+    return renderRepoPage(repo, 'code', rev, cat([
       pull.once('<section><form action="" method="get">' +
         '<h3>' + type + ': ' + rev + ' '),
       revMenu(repo, rev),
@@ -969,7 +974,7 @@ module.exports = function (opts, cb) {
   /* Repo activity */
 
   function serveRepoActivity(repo, branch) {
-    return renderRepoPage(repo, branch, cat([
+    return renderRepoPage(repo, 'activity', branch, cat([
       pull.once('<h3>Activity</h3>'),
       pull(
         ssb.links({
@@ -1013,7 +1018,7 @@ module.exports = function (opts, cb) {
   /* Repo commits */
 
   function serveRepoCommits(repo, branch) {
-    return renderRepoPage(repo, branch, cat([
+    return renderRepoPage(repo, 'commits', branch, cat([
       pull.once('<h3>Commits</h3>'),
       pull(
         repo.readLog(branch),
@@ -1140,7 +1145,7 @@ module.exports = function (opts, cb) {
   /* Repo commit */
 
   function serveRepoCommit(repo, rev) {
-    return renderRepoPage(repo, rev, cat([
+    return renderRepoPage(repo, null, rev, cat([
       pull.once('<h3>Commit ' + rev + '</h3>'),
       readOnce(function (cb) {
         repo.getCommitParsed(rev, function (err, commit) {
@@ -1169,7 +1174,7 @@ module.exports = function (opts, cb) {
   /* An unknown message linking to a repo */
 
   function serveRepoSomething(req, repo, id, msg, path) {
-    return renderRepoPage(repo, null,
+    return renderRepoPage(repo, null, null,
       pull.once('<section><h3>' + link([id]) + '</h3>' +
         json(msg) + '</section>'))
   }
@@ -1189,7 +1194,7 @@ module.exports = function (opts, cb) {
     var raw = req._u.query.raw != null
 
     if (raw)
-      return renderRepoPage(repo, null, pull.once(
+      return renderRepoPage(repo, 'activity', null, pull.once(
        '<a href="?" class="raw-link header-align">Info</a>' +
         '<h3>Update</h3>' +
        '<section class="collapse">' + json({key: id, value: msg}) + '</section>'))
@@ -1204,7 +1209,7 @@ module.exports = function (opts, cb) {
       }
     }
 
-    return renderRepoPage(repo, null, cat([
+    return renderRepoPage(repo, 'activity', null, cat([
       pull.once(
         '<a href="?raw" class="raw-link header-align">Data</a>' +
         '<h3>Update</h3>' +
@@ -1269,7 +1274,7 @@ module.exports = function (opts, cb) {
         var rawFilePath = [repo.id, 'raw', rev].concat(path)
         var filename = path[path.length-1]
         var extension = filename.split('.').pop()
-        cb(null, renderRepoPage(repo, rev, cat([
+        cb(null, renderRepoPage(repo, 'code', rev, cat([
           pull.once('<section><form action="" method="get">' +
             '<h3>' + type + ': ' + rev + ' '),
           revMenu(repo, rev),
@@ -1345,7 +1350,7 @@ module.exports = function (opts, cb) {
   function serveRepoDigs(repo) {
     return readNext(function (cb) {
       getVotes(repo.id, function (err, votes) {
-        cb(null, renderRepoPage(repo, '', cat([
+        cb(null, renderRepoPage(repo, null, null, cat([
           pull.once('<section><h3>Digs</h3>' +
             '<div>Total: ' + votes.upvotes + '</div>'),
           pull(
@@ -1369,7 +1374,7 @@ module.exports = function (opts, cb) {
   function serveRepoIssues(req, repo, issueId, path) {
     var numIssues = 0
     var state = req._u.query.state || 'open'
-    return renderRepoPage(repo, '', cat([
+    return renderRepoPage(repo, 'issues', null, cat([
       pull.once(
         (isPublic ? '' :
           '<div class="right-bar">' + link([repo.id, 'issues', 'new'],
@@ -1413,7 +1418,7 @@ module.exports = function (opts, cb) {
   /* New Issue */
 
   function serveRepoNewIssue(repo, issueId, path) {
-    return renderRepoPage(repo, '', pull.once(
+    return renderRepoPage(repo, 'issues', null, pull.once(
       '<h3>New Issue</h3>' +
       '<section><form action="" method="post">' +
       '<input type="hidden" name="action" value="new-issue">' +
@@ -1428,7 +1433,7 @@ module.exports = function (opts, cb) {
   function serveRepoIssue(req, repo, issue, path, postId) {
     var isAuthor = (myId == issue.author) || (myId == repo.feed)
     var newestMsg = {key: issue.id, value: {timestamp: issue.created_at}}
-    return renderRepoPage(repo, null, cat([
+    return renderRepoPage(repo, 'issues', null, cat([
       pull.once(
         renderNameForm(!isPublic, issue.id, issue.title, 'issue-title', null,
           'Rename the issue',
