@@ -1384,7 +1384,7 @@ module.exports = function (opts, cb) {
       pull.once(
         renderNameForm(!isPublic, issue.id, issue.title, 'issue-title', null,
           'Rename the issue',
-          '<h3>' + issue.title + '</h3>') +
+          '<h3>' + link([issue.id], issue.title) + '</h3>') +
         '<code>' + issue.id + '</code>' +
         '<section class="collapse">' +
         (issue.open
