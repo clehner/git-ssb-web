@@ -152,6 +152,15 @@ function ul(props) {
   }
 }
 
+function nav(links, page, after) {
+  return ['<nav>'].concat(
+    links.map(function (link) {
+      var href = typeof link[0] == 'string' ? link[0] : encodeLink(link[0])
+      var props = link[2] == page ? ' class="active"' : ''
+      return '<a href="' + href + '"' + props + '>' + link[1] + '</a>'
+    }), after || '', '</nav>').join('')
+}
+
 function renderNameForm(enabled, id, name, action, inputId, title, header) {
   if (!inputId) inputId = action
   return '<form class="petname" action="" method="post">' +
@@ -710,12 +719,10 @@ module.exports = function (opts, cb) {
         about.getName(feedId, function (err, name) {
           cb(null, '<h2>' + link([feedId], name) +
           '<code class="user-id">' + feedId + '</code></h2>' +
-          '<nav>' +
-            link([feedId], 'Activity', true,
-              page == 'activity' ? ' class="active"' : '') +
-            link([feedId, 'repos'], 'Repos', true,
-              page == 'repos' ? ' class="active"' : '') +
-          '</nav>')
+          nav([
+            [[feedId], 'Activity', 'activity'],
+            [[feedId, 'repos'], 'Repos', 'repos']
+          ], page))
         })
       }),
       body,
@@ -914,17 +921,13 @@ module.exports = function (opts, cb) {
               'Rename the repo',
               '<h2>' + link([repo.feed], authorName) + ' / ' +
                 link([repo.id], repoName) + '</h2>') +
-            '</div><nav>' +
-              link([repo.id], 'Code', true,
-                page == 'code' ? ' class="active"' : '') +
-              link([repo.id, 'activity'], 'Activity', true,
-                page == 'activity' ? ' class="active"' : '') +
-              link([repo.id, 'commits', branch || ''], 'Commits', true,
-                page == 'commits' ? ' class="active"' : '') +
-              link([repo.id, 'issues'], 'Issues', true,
-                page == 'issues' ? ' class="active"' : '') +
-              gitLink +
-            '</nav>'),
+            '</div>' +
+            nav([
+              [[repo.id], 'Code', 'code'],
+              [[repo.id, 'activity'], 'Activity', 'activity'],
+              [[repo.id, 'commits', branch || ''], 'Commits', 'commits'],
+              [[repo.id, 'issues'], 'Issues', 'issues']
+            ], page, gitLink)),
           body
         ])))
       })
@@ -1381,14 +1384,11 @@ module.exports = function (opts, cb) {
             '<button class="btn">&plus; New Issue</button>', true) +
           '</div>') +
         '<h3>Issues</h3>' +
-          '<nav>' +
-              '<a href="?state=open"' +
-                (state == 'open' ? ' class="active"' : '') + '>Open</a>' +
-              '<a href="?state=closed"' +
-                (state == 'closed' ? ' class="active"' : '') + '>Closed</a>' +
-              '<a href="?state=all"' +
-                (state == 'all' ? ' class="active"' : '') + '>All</a>' +
-          '</nav>'),
+        nav([
+          ['?state=open', 'Open', 'open'],
+          ['?state=closed', 'Closed', 'closed'],
+          ['?state=all', 'All', 'all']
+        ], state)),
       pull(
         issues.createFeedStream({ project: repo.id }),
         pull.filter(function (issue) {
