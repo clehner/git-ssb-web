@@ -288,3 +288,9 @@ h3 .user-id {
 .preview-text :last-child {
   margin-bottom: 0;
 }
+
+.highlight {
+  background-color: #ff6;
+  padding: .25ex .5ex;
+  margin: -.25ex -.5ex;
+}

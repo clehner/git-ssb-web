@@ -761,6 +761,20 @@ module.exports = function (opts, cb) {
                 cb(null, serveRepoIssue(req, Repo(repo), issue, path))
               })
             })
+          case 'post':
+            if (ref.isMsgId(c.issue) && ref.isMsgId(c.repo)) {
+              var done = multicb({ pluck: 1, spread: true })
+              getRepo(c.repo, done())
+              issues.get(c.issue, done())
+              return done(function (err, repo, issue) {
+                if (err) {
+                  if (!repo) return cb(null, serveRepoNotFound(c.repo, err))
+                  return cb(null, serveError(err))
+                }
+                cb(null, serveRepoIssue(req, Repo(repo), issue, path, id))
+              })
+            }
+            // fallthrough
           default:
             if (ref.isMsgId(c.repo))
               return getRepo(c.repo, function (err, repo) {
@@ -1379,7 +1393,7 @@ module.exports = function (opts, cb) {
 
   /* Issue */
 
-  function serveRepoIssue(req, repo, issue, path) {
+  function serveRepoIssue(req, repo, issue, path, postId) {
     var isAuthor = (myId == issue.author) || (myId == repo.feed)
     var newestMsg = {key: issue.id, value: {timestamp: issue.created_at}}
     return renderRepoPage(repo, null, cat([
@@ -1415,7 +1429,8 @@ module.exports = function (opts, cb) {
         pull.map(function (msg) {
           var authorLink = link([msg.value.author], msg.authorName)
           var msgTimeLink = link([msg.key],
-            new Date(msg.value.timestamp).toLocaleString())
+            new Date(msg.value.timestamp).toLocaleString(), false,
+            'name="' + escapeHTML(msg.key) + '"')
           var c = msg.value.content
           if (msg.value.timestamp > newestMsg.value.timestamp)
             newestMsg = msg
@@ -1424,17 +1439,20 @@ module.exports = function (opts, cb) {
               if (c.root == issue.id) {
                 var changed = issues.isStatusChanged(msg, issue)
                 return '<section class="collapse">' +
+                  (msg.key == postId ? '<div class="highlight">' : '') +
                   authorLink +
                   (changed == null ? '' : ' ' + (
                     changed ? 'reopened this issue' : 'closed this issue')) +
                   ' &middot; ' + msgTimeLink +
+                  (msg.key == postId ? '</div>' : '') +
                   markdown(c.text, repo) +
                   '</section>'
               } else {
                 var text = c.text || (c.type + ' ' + msg.key)
                 return '<section class="collapse mention-preview">' +
                   authorLink + ' mentioned this issue in ' +
-                  link([msg.key], String(text).substr(0, 140)) +
+                  '<a href="/' + msg.key + '#' + msg.key + '">' +
+                    String(text).substr(0, 140) + '</a>' +
                   '</section>'
               }
             case 'issue':
