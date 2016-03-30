@@ -19,6 +19,7 @@ var Issues = require('ssb-issues')
 var paramap = require('pull-paramap')
 var gitPack = require('pull-git-pack')
 var Mentions = require('ssb-mentions')
+var Highlight = require('highlight.js')
 
 // render links to git objects and ssb objects
 var blockRenderer = new marked.Renderer()
@@ -30,6 +31,12 @@ blockRenderer.urltransform = function (url) {
   return url
 }
 
+function highlight(code, lang) {
+  return lang
+    ? Highlight.highlight(lang, code).value
+    : Highlight.highlightAuto(code).value
+}
+
 marked.setOptions({
   gfm: true,
   mentions: true,
@@ -39,6 +46,7 @@ marked.setOptions({
   sanitize: true,
   smartLists: true,
   smartypants: false,
+  highlight: highlight,
   renderer: blockRenderer
 })
 
@@ -106,12 +114,6 @@ function escapeHTML(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-}
-
-function escapeHTMLStream() {
-  return pull.map(function (buf) {
-    return escapeHTML(buf.toString('utf8'))
-  })
 }
 
 function ucfirst(str) {
@@ -295,8 +297,6 @@ var contentTypes = {
   css: 'text/css'
 }
 
-var staticBase = path.join(__dirname, 'static')
-
 function readReqJSON(req, cb) {
   pull(
     toPull(req),
@@ -344,8 +344,6 @@ var imgMimes = {
   svg: 'image/svg+xml',
   bmp: 'image/bmp'
 }
-
-var markdownFilenameRegex = /\.md$|\/.markdown$/i
 
 module.exports = function (opts, cb) {
   var ssb, reconnect, myId, getRepo, getVotes, getMsg, issues
@@ -505,9 +503,9 @@ module.exports = function (opts, cb) {
   }
 
   function serveFile(req, dirs) {
-    var filename = path.join.apply(path, [staticBase].concat(dirs))
+    var filename = path.join.apply(path, [__dirname].concat(dirs))
     // prevent escaping base dir
-    if (filename.indexOf(staticBase) !== 0)
+    if (filename.indexOf('../') === 0)
       return servePlainError(403, '403 Forbidden')
 
     return readNext(function (cb) {
@@ -598,7 +596,8 @@ module.exports = function (opts, cb) {
         }],
         '<!doctype html><html><head><meta charset=utf-8>',
         '<title>' + escapeHTML(title || 'git ssb') + '</title>',
-        '<link rel=stylesheet href="/styles.css"/>',
+        '<link rel=stylesheet href="/static/styles.css"/>',
+        '<link rel=stylesheet href="/node_modules/highlight.js/styles/github.css"/>',
         '</head>\n',
         '<body>',
         '<header>',
@@ -621,6 +620,19 @@ module.exports = function (opts, cb) {
         '<pre>' + escapeHTML(err.stack) + '</pre>'),
       serveTemplate(err.name, status || 500)
     )
+  }
+
+  function renderObjectData(obj, filename, repo) {
+    var ext = (/\.([^.]+)$/.exec(filename) || [,filename])[1]
+    return readOnce(function (cb) {
+      pull(obj.read, pull.collect(function (err, bufs) {
+        if (err) return cb(err)
+        var buf = Buffer.concat(bufs, obj.length).toString('utf8')
+        cb(null, (ext == 'md' || ext == 'markdown')
+          ? markdown(buf, repo)
+          : '<pre>' + highlight(buf, ext) + '</pre>')
+      }))
+    })
   }
 
   /* Feed */
@@ -1020,7 +1032,7 @@ module.exports = function (opts, cb) {
     var treePath = [repo.id, 'tree', commit.id]
     return '<section class="collapse">' +
       '<strong>' + link(commitPath, commit.title) + '</strong><br>' +
-      '<code>' + commit.id + '</code> ' +
+      '<tt>' + commit.id + '</tt> ' +
         link(treePath, 'Tree') + '<br>' +
       escapeHTML(commit.author.name) + ' &middot; ' + commit.author.date.toLocaleString() +
       (commit.separateAuthor ? '<br>' + escapeHTML(commit.committer.name) + ' committed on ' + commit.committer.date.toLocaleString() : "") +
@@ -1056,7 +1068,7 @@ module.exports = function (opts, cb) {
         cb(null,
           'Latest: <strong>' + link(commitPath, commit.title) +
           '</strong><br>' +
-          '<code>' + commit.id + '</code><br> ' +
+          '<tt>' + commit.id + '</tt><br> ' +
           escapeHTML(commit.committer.name) + ' committed on ' +
           commit.committer.date.toLocaleString() +
           (commit.separateAuthor ? '<br>' +
@@ -1114,20 +1126,9 @@ module.exports = function (opts, cb) {
           repo.getObjectFromAny(file.id, function (err, obj) {
             if (err) return cb(err)
             cb(null, cat([
-              pull.once('<section><h4>' + escapeHTML(file.name) + '</h4><hr/>'),
-              markdownFilenameRegex.test(file.name) ?
-                readOnce(function (cb) {
-                  pull(obj.read, pull.collect(function (err, bufs) {
-                    if (err) return cb(err)
-                    var buf = Buffer.concat(bufs, obj.length)
-                    cb(null, markdown(buf.toString(), repo))
-                  }))
-                })
-              : cat([
-                pull.once('<pre>'),
-                pull(obj.read, escapeHTMLStream()),
-                pull.once('</pre>')
-              ]),
+              pull.once('<section><h4><a name="readme">' +
+                escapeHTML(file.name) + '</a></h4><hr/>'),
+              renderObjectData(obj, file.name, repo),
               pull.once('</section>')
             ]))
           })
@@ -1148,7 +1149,7 @@ module.exports = function (opts, cb) {
           var treePath = [repo.id, 'tree', commit.tree]
           cb(null, '<section class="collapse">' +
             '<strong>' + link(commitPath, commit.title) + '</strong>' +
-            pre(commit.body) +
+            (commit.body ? pre(commit.body) : '') +
             '<p>' +
             (commit.separateAuthor ? escapeHTML(commit.author.name) +
               ' authored on ' + commit.author.date.toLocaleString() + '<br>'
@@ -1283,15 +1284,7 @@ module.exports = function (opts, cb) {
           extension in imgMimes
           ? pull.once('<img src="' + encodeLink(rawFilePath) +
             '" alt="' + escapeHTML(filename) + '" />')
-          : markdownFilenameRegex.test(filename)
-          ? readOnce(function (cb) {
-            pull(object.read, pull.collect(function (err, bufs) {
-              if (err) return cb(err)
-              var buf = Buffer.concat(bufs, object.length)
-              cb(null, markdown(buf.toString('utf8'), repo))
-            }))
-          })
-          : pull(object.read, escapeHTMLStream(), wrap('pre')),
+          : renderObjectData(object, filename, repo),
           pull.once('</section>')
         ])))
       })
