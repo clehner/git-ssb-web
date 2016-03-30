@@ -458,6 +458,8 @@ module.exports = function (opts, cb) {
               return cb(null, serveError(new Error('Missing id'), 400))
 
             var msg = schemas.post(data.text, data.id, data.branch || data.id)
+            msg.issue = data.issue
+            msg.repo = data.repo
             if (data.open != null)
               Issues.schemas.opens(msg, data.id)
             if (data.close != null)
@@ -1488,6 +1490,8 @@ module.exports = function (opts, cb) {
       cb(null, '<section><form action="" method="post">' +
         '<input type="hidden" name="action" value="comment">' +
         '<input type="hidden" name="id" value="' + issue.id + '">' +
+        '<input type="hidden" name="issue" value="' + issue.id + '">' +
+        '<input type="hidden" name="repo" value="' + repo.id + '">' +
         '<input type="hidden" name="branch" value="' + newestMsg.key + '">' +
         renderPostForm(repo) +
         '<input type="submit" class="btn open" value="Comment" />' +
