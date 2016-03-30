@@ -78,6 +78,13 @@ function link(parts, text, raw, props) {
     '>' + text + '</a>'
 }
 
+function linkify(text) {
+  // regex is from ssb-ref
+  return text.replace(/(@|%|&)[A-Za-z0-9\/+]{43}=\.[\w\d]+/g, function (str) {
+    return '<a href="/' + encodeURIComponent(str) + '">' + str + '</a>'
+  })
+}
+
 function timestamp(time) {
   time = Number(time)
   var d = new Date(time)
@@ -89,7 +96,7 @@ function pre(text) {
 }
 
 function json(obj) {
-  return pre(JSON.stringify(obj, null, 2))
+  return linkify(pre(JSON.stringify(obj, null, 2)))
 }
 
 function escapeHTML(str) {
