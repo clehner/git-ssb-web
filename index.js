@@ -835,10 +835,13 @@ module.exports = function (opts, cb) {
     return path[1] ?
       serveRepoPage2(req, repo, path) :
       readNext(function (cb) {
-        repo.getSymRef('HEAD', true, function (err, value) {
+        // TODO: handle this in pull-git-repo or ssb-git-repo
+        repo.getSymRef('HEAD', true, function (err, ref) {
           if (err) return cb(err)
-          path[1] = value || null
-          cb(null, serveRepoPage2(req, repo, path))
+          repo.resolveRef(ref, function (err, rev) {
+            path[1] = rev ? ref : null
+            cb(null, serveRepoPage2(req, repo, path))
+          })
         })
       })
   }
