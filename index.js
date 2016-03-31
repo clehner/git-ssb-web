@@ -659,7 +659,7 @@ module.exports = function (opts, cb) {
       }),
       pull.take(20),
       addAuthorName(about),
-      pull.asyncMap(renderFeedItem)
+      paramap(renderFeedItem, 8)
     )
   }
 
@@ -1397,12 +1397,12 @@ module.exports = function (opts, cb) {
             '<div>Total: ' + votes.upvotes + '</div>'),
           pull(
             pull.values(Object.keys(votes.upvoters)),
-            pull.asyncMap(function (feedId, cb) {
+            paramap(function (feedId, cb) {
               about.getName(feedId, function (err, name) {
                 if (err) return cb(err)
                 cb(null, link([feedId], name))
               })
-            }),
+            }, 8),
             ul()
           ),
           pull.once('</section>')
