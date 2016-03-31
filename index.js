@@ -20,6 +20,7 @@ var paramap = require('pull-paramap')
 var gitPack = require('pull-git-pack')
 var Mentions = require('ssb-mentions')
 var Highlight = require('highlight.js')
+var JsDiff = require('diff')
 
 // render links to git objects and ssb objects
 var blockRenderer = new marked.Renderer()
@@ -230,6 +231,21 @@ function readOnce(fn) {
       cb(null, data)
     })
   }
+}
+
+function readObjectString(obj, cb) {
+  pull(obj.read, pull.collect(function (err, bufs) {
+    if (err) return cb(err)
+    cb(null, Buffer.concat(bufs, obj.length).toString('utf8'))
+  }))
+}
+
+function getRepoObjectString(repo, id, cb) {
+  if (!id) return cb(null, '')
+  repo.getObjectFromAny(id, function (err, obj) {
+    if (err) return cb(err)
+    readObjectString(obj, cb)
+  })
 }
 
 function compareMsgs(a, b) {
@@ -634,13 +650,13 @@ module.exports = function (opts, cb) {
   function renderObjectData(obj, filename, repo) {
     var ext = (/\.([^.]+)$/.exec(filename) || [,filename])[1]
     return readOnce(function (cb) {
-      pull(obj.read, pull.collect(function (err, bufs) {
+      readObjectString(obj, function (err, buf) {
+        buf = buf.toString('utf8')
         if (err) return cb(err)
-        var buf = Buffer.concat(bufs, obj.length).toString('utf8')
         cb(null, (ext == 'md' || ext == 'markdown')
           ? markdown(buf, repo)
           : '<pre>' + highlight(buf, ext) + '</pre>')
-      }))
+      })
     })
   }
 
@@ -1172,7 +1188,7 @@ module.exports = function (opts, cb) {
             }).join('<br>') + '</p>' +
             (commit.tree ? 'Tree: ' + link(treePath) : 'No tree') +
             '</section>'),
-            renderDiffStat(repo, commit.tree, commit.parents)
+            renderDiffStat(repo, commit.id, commit.parents)
           ]))
         })
       })
@@ -1185,35 +1201,79 @@ module.exports = function (opts, cb) {
     if (parentIds.length == 0) parentIds = [null]
     var lastI = parentIds.length
     var oldTree = parentIds[0]
+    var changedFiles = []
     return cat([
       pull.once('<section><h3>Files changed</h3>'),
       pull(
         repo.diffTrees(parentIds.concat(id), true),
         pull.map(function (item) {
-          var filename = escapeHTML(item.path.join('/'))
+          var filename = item.filename = escapeHTML(item.path.join('/'))
           var oldId = item.id && item.id[0]
           var newId = item.id && item.id[lastI]
-          var oldMode = item.mode && item.mode[0].toString(8)
-          var newMode = item.mode && item.mode[lastI].toString(8)
+          var oldMode = item.mode && item.mode[0]
+          var newMode = item.mode && item.mode[lastI]
           var action =
-            !oldId && newId ? 'new' :
+            !oldId && newId ? 'added' :
             oldId && !newId ? 'deleted' :
             oldMode != newMode ?
-              'changed mode from ' + oldMode + ' to ' + newMode :
-            ''
-          var newLink = newId ?
-            link([repo.id, 'blob', id].concat(item.path), 'new') : ''
-          var oldLink = oldId ?
-            link([repo.id, 'blob', oldTree].concat(item.path), 'old') : ''
-          var links = [oldLink, newLink]
-          var fileLink = newLink || oldLink ? filename :
-            link([repo.id, 'blob', id].concat(item.path), filename)
-          return [fileLink, action, links.filter(Boolean).join(', ')]
+              'changed mode from ' + oldMode.toString(8) +
+              ' to ' + newMode.toString(8) :
+            'changed'
+          if (item.id)
+            changedFiles.push(item)
+          var fileHref = item.id ?
+            '#' + encodeURIComponent(item.path.join('/')) :
+            encodeLink([repo.id, 'blob', id].concat(item.path))
+          return ['<a href="' + fileHref + '">' + filename + '</a>', action]
         }),
         table()
       ),
+      pull(
+        pull.values(changedFiles),
+        paramap(function (item, cb) {
+          var done = multicb({ pluck: 1, spread: true })
+          getRepoObjectString(repo, item.id[0], done())
+          getRepoObjectString(repo, item.id[lastI], done())
+          done(function (err, strOld, strNew) {
+            if (err) return cb(err)
+            var commitId = item.id[lastI] ? id : parentIds.filter(Boolean)[0]
+            cb(null, htmlLineDiff(item.filename, item.filename,
+              strOld, strNew,
+              encodeLink([repo.id, 'blob', commitId].concat(item.path))))
+          })
+        }, 4)
+      ),
       pull.once('</section>'),
     ])
+  }
+
+  function htmlLineDiff(filename, anchor, oldStr, newStr, blobHref, rawHref) {
+    var diff = JsDiff.structuredPatch('', '', oldStr, newStr)
+    var groups = diff.hunks.map(function (hunk) {
+      var oldLine = hunk.oldStart
+      var newLine = hunk.newStart
+      var header = '<tr class="diff-hunk-header"><td colspan=2></td><td>' +
+        '@@ -' + oldLine + ',' + hunk.oldLines + ' ' +
+        '+' + newLine + ',' + hunk.newLines + ' @@' +
+        '</td></tr>'
+      return [header].concat(hunk.lines.map(function (line) {
+        var s = line[0]
+        if (s == '\\') return
+        var html = escapeHTML(line)
+        var trClass = s == '+' ? 'diff-new' : s == '-' ? 'diff-old' : ''
+        return '<tr' + (trClass ? ' class="' + trClass + '"' : '') + '>' +
+          '<td class="diff-linenum">' + (s == '+' ? '' : oldLine++) + '</td>' +
+          '<td class="diff-linenum">' + (s == '-' ? '' : newLine++) + '</td>' +
+          '<td class="diff-text">' + html + '</td></tr>'
+      }))
+    })
+    return '<pre><table class="diff">' +
+      '<tr><th colspan=3><a name="' + anchor + '">' + filename + '</a>' +
+      '<span class="right-bar">' +
+        '<a href="' + blobHref + '">View</a> ' +
+      '</span></th></tr>' +
+      [].concat.apply([], groups).join('') +
+      '</table></pre>'
   }
 
   /* An unknown message linking to a repo */

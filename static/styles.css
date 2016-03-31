@@ -317,3 +317,43 @@ h3 .user-id {
   padding: .25ex .5ex;
   margin: -.25ex -.5ex;
 }
+
+/* diffs */
+
+.diff {
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.diff th {
+  font-family: sans-serif;
+  font-size: 1.25em;
+  padding-bottom: .5ex;
+}
+
+.diff-hunk-header {
+  background-color: #eee;
+  color: grey;
+}
+
+.diff td {
+  padding: 0 1ex 0;
+}
+
+.diff tr:hover {
+  background-color: #fff8d2;
+}
+
+.diff-linenum {
+  text-align: right;
+  color: grey;
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.diff-text {
+  white-space: pre;
+  width: 100%;
+}
+
+.diff-old { background-color: #ffe2dd; }
+.diff-new { background-color: #d1ffd6; }
