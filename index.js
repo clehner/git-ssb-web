@@ -1150,12 +1150,12 @@ module.exports = function (opts, cb) {
   function serveRepoCommit(repo, rev) {
     return renderRepoPage(repo, null, rev, cat([
       pull.once('<h3>Commit ' + rev + '</h3>'),
-      readOnce(function (cb) {
+      readNext(function (cb) {
         repo.getCommitParsed(rev, function (err, commit) {
           if (err) return cb(err)
           var commitPath = [repo.id, 'commit', commit.id]
           var treePath = [repo.id, 'tree', commit.tree]
-          cb(null, '<section class="collapse">' +
+          cb(null, cat([pull.once('<section class="collapse">' +
             '<strong>' + link(commitPath, commit.title) + '</strong>' +
             (commit.body ? pre(commit.body) : '') +
             '<p>' +
@@ -1168,10 +1168,49 @@ module.exports = function (opts, cb) {
               return 'Parent: ' + link([repo.id, 'commit', id], id)
             }).join('<br>') + '</p>' +
             (commit.tree ? 'Tree: ' + link(treePath) : 'No tree') +
-            '</section>')
+            '</section>'),
+            renderDiffStat(repo, commit.tree, commit.parents)
+          ]))
         })
       })
     ]))
+  }
+
+  /* Diff stat */
+
+  function renderDiffStat(repo, id, parentIds) {
+    if (parentIds.length == 0) parentIds = [null]
+    var lastI = parentIds.length
+    var oldTree = parentIds[0]
+    return cat([
+      pull.once('<section><h3>Files changed</h3>'),
+      pull(
+        repo.diffTrees(parentIds.concat(id), true),
+        pull.map(function (item) {
+          var filename = escapeHTML(item.path.join('/'))
+          var oldId = item.id && item.id[0]
+          var newId = item.id && item.id[lastI]
+          var oldMode = item.mode && item.mode[0].toString(8)
+          var newMode = item.mode && item.mode[lastI].toString(8)
+          var action =
+            !oldId && newId ? 'new' :
+            oldId && !newId ? 'deleted' :
+            oldMode != newMode ?
+              'changed mode from ' + oldMode + ' to ' + newMode :
+            ''
+          var newLink = newId ?
+            link([repo.id, 'blob', id].concat(item.path), 'new') : ''
+          var oldLink = oldId ?
+            link([repo.id, 'blob', oldTree].concat(item.path), 'old') : ''
+          var links = [oldLink, newLink]
+          var fileLink = newLink || oldLink ? filename :
+            link([repo.id, 'blob', id].concat(item.path), filename)
+          return [fileLink, action, links.filter(Boolean).join(', ')]
+        }),
+        table()
+      ),
+      pull.once('</section>'),
+    ])
   }
 
   /* An unknown message linking to a repo */
