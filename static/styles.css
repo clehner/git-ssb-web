@@ -27,6 +27,7 @@ section code {
 }
 
 pre > code {
+  padding: 0;
   background-color: #f8f8f8;
 }
 
