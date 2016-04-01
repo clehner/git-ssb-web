@@ -233,6 +233,49 @@ function readOnce(fn) {
   }
 }
 
+function paginate(onFirst, through, onLast, onEmpty) {
+  var ended, last, first = true, queue = []
+  return function (read) {
+    var mappedRead = through(function (end, cb) {
+      if (ended = end) return read(ended, cb)
+      if (queue.length)
+        return cb(null, queue.shift())
+      read(null, function (end, data) {
+        if (end) return cb(end)
+        last = data
+        cb(null, data)
+      })
+    })
+    return function (end, cb) {
+      var tmp
+      if (ended) return cb(ended)
+      if (ended = end) return read(ended, cb)
+      if (first)
+        return read(null, function (end, data) {
+          if (ended = end) {
+            if (end === true && onEmpty)
+              return onEmpty(cb)
+            return cb(ended)
+          }
+          first = false
+          last = data
+          queue.push(data)
+          if (onFirst)
+            onFirst(data, cb)
+          else
+            mappedRead(null, cb)
+        })
+      mappedRead(null, function (end, data) {
+        if (ended = end) {
+          if (end === true && last)
+            return onLast(last, cb)
+        }
+        cb(end, data)
+      })
+    }
+  }
+}
+
 function readObjectString(obj, cb) {
   pull(obj.read, pull.collect(function (err, bufs) {
     if (err) return cb(err)
@@ -266,6 +309,16 @@ function pullSort(comparator) {
 
 function sortMsgs() {
   return pullSort(compareMsgs)
+}
+
+function pullReverse() {
+  return function (read) {
+    return readNext(function (cb) {
+      pull(read, pull.collect(function (err, items) {
+        cb(err, items && pull.values(items.reverse()))
+      }))
+    })
+  }
 }
 
 function tryDecodeURIComponent(str) {
@@ -522,7 +575,7 @@ module.exports = function (opts, cb) {
     else if (ref.isMsgId(dir))
       return serveMessage(req, dir, dirs.slice(1))
     else if (ref.isFeedId(dir))
-      return serveUserPage(dir, dirs.slice(1))
+      return serveUserPage(req, dir, dirs.slice(1))
     else
       return serveFile(req, dirs)
   }
@@ -662,20 +715,44 @@ module.exports = function (opts, cb) {
 
   /* Feed */
 
-  function renderFeed(feedId) {
+  function renderFeed(req, feedId) {
+    var query = req._u.query
     var opts = {
-      reverse: true,
+      reverse: !query.forwards,
+      lt: query.lt && +query.lt || Date.now(),
+      gt: query.gt && +query.gt,
       id: feedId
     }
     return pull(
       feedId ? ssb.createUserStream(opts) : ssb.createFeedStream(opts),
       pull.filter(function (msg) {
-        return msg.value.content.type in msgTypes &&
-          msg.value.timestamp < Date.now()
+        return msg.value.content.type in msgTypes
       }),
       pull.take(20),
       addAuthorName(about),
-      paramap(renderFeedItem, 8)
+      query.forwards && pullReverse(),
+      paginate(
+        function (first, cb) {
+          if (!query.lt && !query.gt) return cb(null, '')
+          var gt = feedId ? first.value.sequence : first.value.timestamp + 1
+          var q = qs.stringify({
+            gt: gt,
+            forwards: 1
+          })
+          cb(null, '<a href="?' + q + '">Newer</a>')
+        },
+        paramap(renderFeedItem, 8),
+        function (last, cb) {
+          cb(null, '<a href="?' + qs.stringify({
+            lt: feedId ? last.value.sequence : last.value.timestamp - 1
+          }) + '">Older</a>')
+        },
+        function (cb) {
+          cb(null, query.forwards ?
+            '<a href="?lt=' + (opts.gt + 1) + '">Older</a>' :
+            '<a href="?gt=' + (opts.lt - 1) + '&amp;forwards=1">Newer</a>')
+        }
+      )
     )
   }
 
@@ -714,16 +791,16 @@ module.exports = function (opts, cb) {
 
   /* Index */
 
-  function serveIndex() {
-    return serveTemplate('git ssb')(renderFeed())
+  function serveIndex(req) {
+    return serveTemplate('git ssb')(renderFeed(req))
   }
 
-  function serveUserPage(feedId, dirs) {
+  function serveUserPage(req, feedId, dirs) {
     switch (dirs[0]) {
       case undefined:
       case '':
       case 'activity':
-        return serveUserActivity(feedId)
+        return serveUserActivity(req, feedId)
       case 'repos':
         return serveUserRepos(feedId)
     }
@@ -745,8 +822,8 @@ module.exports = function (opts, cb) {
     ]))
   }
 
-  function serveUserActivity(feedId) {
-    return renderUserPage(feedId, 'activity', renderFeed(feedId))
+  function serveUserActivity(req, feedId) {
+    return renderUserPage(feedId, 'activity', renderFeed(req, feedId))
   }
 
   function serveUserRepos(feedId) {
@@ -872,7 +949,7 @@ module.exports = function (opts, cb) {
       case 'activity':
         return serveRepoActivity(repo, branch)
       case 'commits':
-        return serveRepoCommits(repo, branch)
+        return serveRepoCommits(req, repo, branch)
       case 'commit':
         return serveRepoCommit(repo, path[1])
       case 'tree':
@@ -1005,8 +1082,7 @@ module.exports = function (opts, cb) {
           source: repo.feed,
           rel: 'repo',
           values: true,
-          reverse: true,
-          limit: 8
+          reverse: true
         }),
         pull.map(renderRepoUpdate.bind(this, repo))
       )
@@ -1039,17 +1115,25 @@ module.exports = function (opts, cb) {
 
   /* Repo commits */
 
-  function serveRepoCommits(repo, branch) {
+  function serveRepoCommits(req, repo, branch) {
+    var query = req._u.query
     return renderRepoPage(repo, 'commits', branch, cat([
       pull.once('<h3>Commits</h3>'),
       pull(
-        repo.readLog(branch),
-        paramap(function (hash, cb) {
-          repo.getCommitParsed(hash, function (err, commit) {
-            if (err) return cb(err)
-            cb(null, renderCommit(repo, commit))
-          })
-        }, 8)
+        repo.readLog(query.start || branch),
+        pull.take(20),
+        paginate(
+          !query.start ? '' : function (first, cb) {
+            cb(null, '&hellip;')
+          },
+          pull(
+            paramap(repo.getCommitParsed.bind(repo), 8),
+            pull.map(renderCommit.bind(this, repo))
+          ),
+          function (last, cb) {
+            cb(null, '<a href="?start=' + last + '">Older</a>')
+          }
+        )
       )
     ]))
   }
