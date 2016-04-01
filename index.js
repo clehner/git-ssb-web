@@ -1168,25 +1168,27 @@ module.exports = function (opts, cb) {
 
   function serveRepoCommit(repo, rev) {
     return renderRepoPage(repo, null, rev, cat([
-      pull.once('<h3>Commit ' + rev + '</h3>'),
       readNext(function (cb) {
         repo.getCommitParsed(rev, function (err, commit) {
           if (err) return cb(err)
           var commitPath = [repo.id, 'commit', commit.id]
-          var treePath = [repo.id, 'tree', commit.tree]
-          cb(null, cat([pull.once('<section class="collapse">' +
-            '<strong>' + link(commitPath, commit.title) + '</strong>' +
+          var treePath = [repo.id, 'tree', commit.id]
+          cb(null, cat([pull.once(
+            '<h3>' + link(commitPath, 'Commit ' + rev) + '</h3>' +
+            '<section class="collapse">' +
+            '<div class="right-bar">' +
+              link(treePath, 'Browse Files') +
+            '</div>' +
+            '<h4>' + escapeHTML(commit.title) + '</h4>' +
             (commit.body ? pre(commit.body) : '') +
-            '<p>' +
             (commit.separateAuthor ? escapeHTML(commit.author.name) +
               ' authored on ' + commit.author.date.toLocaleString() + '<br>'
               : '') +
             escapeHTML(commit.committer.name) + ' committed on ' +
-              commit.committer.date.toLocaleString() + '</p>' +
-            '<p>' + commit.parents.map(function (id) {
+              commit.committer.date.toLocaleString() + '<br/>' +
+            commit.parents.map(function (id) {
               return 'Parent: ' + link([repo.id, 'commit', id], id)
-            }).join('<br>') + '</p>' +
-            (commit.tree ? 'Tree: ' + link(treePath) : 'No tree') +
+            }).join('<br>') +
             '</section>'),
             renderDiffStat(repo, commit.id, commit.parents)
           ]))
