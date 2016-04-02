@@ -37,9 +37,15 @@ function getExtension(filename) {
 }
 
 function highlight(code, lang) {
-  return lang
-    ? Highlight.highlight(lang, code).value
-    : Highlight.highlightAuto(code).value
+  try {
+    return lang
+      ? Highlight.highlight(lang, code).value
+      : Highlight.highlightAuto(code).value
+  } catch(e) {
+    if (/^Unknown language/.test(e.message))
+      return escapeHTML(code)
+    throw e
+  }
 }
 
 marked.setOptions({
