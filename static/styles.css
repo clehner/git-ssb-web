@@ -340,6 +340,7 @@ h3 .user-id {
   padding: 0 1ex 0;
 }
 
+tr.active-hash,
 .code tr:hover {
   background-color: #fff8d2;
 }
