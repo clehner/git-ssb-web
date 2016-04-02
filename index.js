@@ -1347,9 +1347,14 @@ module.exports = function (opts, cb) {
         if (s == '\\') return
         var html = escapeHTML(line)
         var trClass = s == '+' ? 'diff-new' : s == '-' ? 'diff-old' : ''
-        return '<tr' + (trClass ? ' class="' + trClass + '"' : '') + '>' +
-          '<td class="diff-linenum">' + (s == '+' ? '' : oldLine++) + '</td>' +
-          '<td class="diff-linenum">' + (s == '-' ? '' : newLine++) + '</td>' +
+        var lineNums = [s == '+' ? '' : oldLine++, s == '-' ? '' : newLine++]
+        var id = [filename].concat(lineNums).join('-')
+        return '<tr id="' + escapeHTML(id) + '" class="' + trClass + '">' +
+          lineNums.map(function (num) {
+            return '<td class="diff-linenum">' +
+              (num ? '<a href="#' + encodeURIComponent(id) + '">' +
+                num + '</a>' : '') + '</td>'
+          }).join('') +
           '<td class="diff-text">' + html + '</td></tr>'
       }))
     })

@@ -351,6 +351,14 @@ h3 .user-id {
   border-right: 1px solid rgba(0, 0, 0, 0.06);
 }
 
+.diff-linenum a {
+  color: inherit;
+}
+
+.diff-linenum a:hover {
+  color: #9f9999;
+}
+
 .diff-text {
   white-space: pre-wrap;
   width: 100%;
