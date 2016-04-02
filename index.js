@@ -32,6 +32,10 @@ blockRenderer.urltransform = function (url) {
   return url
 }
 
+function getExtension(filename) {
+  return (/\.([^.]+)$/.exec(filename) || [,filename])[1]
+}
+
 function highlight(code, lang) {
   return lang
     ? Highlight.highlight(lang, code).value
@@ -701,7 +705,7 @@ module.exports = function (opts, cb) {
   }
 
   function renderObjectData(obj, filename, repo) {
-    var ext = (/\.([^.]+)$/.exec(filename) || [,filename])[1]
+    var ext = getExtension(filename)
     return readOnce(function (cb) {
       readObjectString(obj, function (err, buf) {
         buf = buf.toString('utf8')
@@ -1345,7 +1349,7 @@ module.exports = function (opts, cb) {
       return [header].concat(hunk.lines.map(function (line) {
         var s = line[0]
         if (s == '\\') return
-        var html = escapeHTML(line)
+        var html = highlight(line, getExtension(filename))
         var trClass = s == '+' ? 'diff-new' : s == '-' ? 'diff-old' : ''
         var lineNums = [s == '+' ? '' : oldLine++, s == '-' ? '' : newLine++]
         var id = [filename].concat(lineNums).join('-')
