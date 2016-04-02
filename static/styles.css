@@ -318,14 +318,14 @@ h3 .user-id {
   margin: -.25ex -.5ex;
 }
 
-/* diffs */
+/* code and diffs */
 
-.diff {
+.code {
   border-collapse: collapse;
   text-align: left;
 }
 
-.diff th {
+.code th {
   font-family: sans-serif;
   font-size: 1.25em;
   padding-bottom: .5ex;
@@ -336,30 +336,30 @@ h3 .user-id {
   color: grey;
 }
 
-.diff td {
+.code td {
   padding: 0 1ex 0;
 }
 
-.diff tr:hover {
+.code tr:hover {
   background-color: #fff8d2;
 }
 
-.diff-linenum {
+.code-linenum {
   vertical-align: top;
   text-align: right;
   color: grey;
   border-right: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-.diff-linenum a {
+.code-linenum a {
   color: inherit;
 }
 
-.diff-linenum a:hover {
+.code-linenum a:hover {
   color: #9f9999;
 }
 
-.diff-text {
+.code-text {
   white-space: pre-wrap;
   width: 100%;
 }

@@ -718,9 +718,20 @@ module.exports = function (opts, cb) {
         if (err) return cb(err)
         cb(null, (ext == 'md' || ext == 'markdown')
           ? markdown(buf, repo)
-          : '<pre>' + highlight(buf, ext) + '</pre>')
+          : renderCodeTable(buf, ext))
       })
     })
+  }
+
+  function renderCodeTable(buf, ext) {
+    return '<pre><table class="code">' +
+      highlight(buf, ext).split('\n').map(function (line, i) {
+        i++
+        return '<tr id="L' + i + '">' +
+          '<td class="code-linenum">' + '<a href="#L' + i + '">' + i + '</td>' +
+          '<td class="code-text">' + line + '</td></tr>'
+      }).join('') +
+      '</table></pre>'
   }
 
   /* Feed */
@@ -1361,14 +1372,14 @@ module.exports = function (opts, cb) {
         var id = [filename].concat(lineNums).join('-')
         return '<tr id="' + escapeHTML(id) + '" class="' + trClass + '">' +
           lineNums.map(function (num) {
-            return '<td class="diff-linenum">' +
+            return '<td class="code-linenum">' +
               (num ? '<a href="#' + encodeURIComponent(id) + '">' +
                 num + '</a>' : '') + '</td>'
           }).join('') +
-          '<td class="diff-text">' + html + '</td></tr>'
+          '<td class="code-text">' + html + '</td></tr>'
       }))
     })
-    return '<pre><table class="diff">' +
+    return '<pre><table class="code">' +
       '<tr><th colspan=3><a name="' + anchor + '">' + filename + '</a>' +
       '<span class="right-bar">' +
         '<a href="' + blobHref + '">View</a> ' +
