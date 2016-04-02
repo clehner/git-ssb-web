@@ -22,6 +22,8 @@ var Mentions = require('ssb-mentions')
 var Highlight = require('highlight.js')
 var JsDiff = require('diff')
 
+var hlCssPath = path.resolve(require.resolve('highlight.js'), '../../styles')
+
 // render links to git objects and ssb objects
 var blockRenderer = new marked.Renderer()
 blockRenderer.urltransform = function (url) {
@@ -600,14 +602,18 @@ module.exports = function (opts, cb) {
       return serveMessage(req, dir, dirs.slice(1))
     else if (ref.isFeedId(dir))
       return serveUserPage(req, dir, dirs.slice(1))
-    else
+    else if (dir == 'static')
       return serveFile(req, dirs)
+    else if (dir == 'highlight')
+      return serveFile(req, [hlCssPath].concat(dirs.slice(1)), true)
+    else
+      return serve404(req)
   }
 
-  function serveFile(req, dirs) {
-    var filename = path.join.apply(path, [__dirname].concat(dirs))
+  function serveFile(req, dirs, outside) {
+    var filename = path.resolve.apply(path, [__dirname].concat(dirs))
     // prevent escaping base dir
-    if (filename.indexOf('../') === 0)
+    if (!outside && filename.indexOf('../') === 0)
       return servePlainError(403, '403 Forbidden')
 
     return readNext(function (cb) {
@@ -699,7 +705,7 @@ module.exports = function (opts, cb) {
         '<!doctype html><html><head><meta charset=utf-8>',
         '<title>' + escapeHTML(title || 'git ssb') + '</title>',
         '<link rel=stylesheet href="/static/styles.css"/>',
-        '<link rel=stylesheet href="/node_modules/highlight.js/styles/github.css"/>',
+        '<link rel=stylesheet href="/highlight/github.css"/>',
         '</head>\n',
         '<body>',
         '<header>',
