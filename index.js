@@ -1385,7 +1385,7 @@ module.exports = function (opts, cb) {
       }))
     })
     return '<pre><table class="code">' +
-      '<tr><th colspan=3><a name="' + anchor + '">' + filename + '</a>' +
+      '<tr><th colspan=3 id="' + anchor + '">' + filename +
       '<span class="right-bar">' +
         '<a href="' + blobHref + '">View</a> ' +
       '</span></th></tr>' +
