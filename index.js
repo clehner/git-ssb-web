@@ -1618,7 +1618,7 @@ module.exports = function (opts, cb) {
           var state = (issue.open ? 'open' : 'closed')
           return '<section class="collapse">' +
             '<i class="issue-state issue-state-' + state + '"' +
-              ' title="' + ucfirst(state) + '">◾</i> ' +
+              ' title="' + ucfirst(state) + '">◼</i> ' +
             '<a href="' + encodeLink(issue.id) + '">' +
               escapeHTML(issue.title) +
               '<span class="right-bar">' +
