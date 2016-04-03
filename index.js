@@ -367,17 +367,15 @@ function getMention(msg, id) {
 var hasOwnProp = Object.prototype.hasOwnProperty
 
 function getContentType(filename) {
-  var ext = filename.split('.').pop()
-  return hasOwnProp.call(contentTypes, ext)
-    ? contentTypes[ext]
-    : 'text/plain; charset=utf-8'
+  var ext = getExtension(filename)
+  return contentTypes[ext] || imgMimes[ext] || 'text/plain; charset=utf-8'
 }
 
 var contentTypes = {
   css: 'text/css'
 }
 
-function readReqJSON(req, cb) {
+function readReqForm(req, cb) {
   pull(
     toPull(req),
     pull.collect(function (err, bufs) {
@@ -505,9 +503,9 @@ module.exports = function (opts, cb) {
 
     if (req.method == 'POST') {
       if (isPublic)
-        return servePlainError(405, 'POST not allowed on public site')
+        return serveBuffer(405, 'POST not allowed on public site')
       return readNext(function (cb) {
-        readReqJSON(req, function (err, data) {
+        readReqForm(req, function (err, data) {
           if (err) return cb(null, serveError(err, 400))
           if (!data) return cb(null, serveError(new Error('No data'), 400))
 
@@ -578,7 +576,7 @@ module.exports = function (opts, cb) {
             return cb(null, serveMarkdown(data.text, {id: data.repo}))
 
           default:
-            cb(null, servePlainError(400, 'What are you trying to do?'))
+            cb(null, serveBuffer(400, 'What are you trying to do?'))
           }
         })
       })
@@ -604,18 +602,18 @@ module.exports = function (opts, cb) {
     var filename = path.resolve.apply(path, [__dirname].concat(dirs))
     // prevent escaping base dir
     if (!outside && filename.indexOf('../') === 0)
-      return servePlainError(403, '403 Forbidden')
+      return serveBuffer(403, '403 Forbidden')
 
     return readNext(function (cb) {
       fs.stat(filename, function (err, stats) {
         cb(null, err ?
           err.code == 'ENOENT' ? serve404(req)
-          : servePlainError(500, err.message)
+          : serveBuffer(500, err.message)
         : 'if-modified-since' in req.headers &&
           new Date(req.headers['if-modified-since']) >= stats.mtime ?
           pull.once([304])
         : stats.isDirectory() ?
-          servePlainError(403, 'Directory not listable')
+          serveBuffer(403, 'Directory not listable')
         : cat([
           pull.once([200, {
             'Content-Type': getContentType(filename),
@@ -638,33 +636,30 @@ module.exports = function (opts, cb) {
     ])
   }
 
+  function serveBuffer(code, buf, contentType, headers) {
+    headers = headers || {}
+    headers['Content-Type'] = contentType || 'text/plain; charset=utf-8'
+    headers['Content-Length'] = Buffer.byteLength(buf)
+    return pull.values([
+      [code, headers],
+      buf
+    ])
+  }
+
   function serve404(req) {
-    return servePlainError(404, '404 Not Found')
+    return serveBuffer(404, '404 Not Found')
   }
 
   function serveRedirect(path) {
-    var msg = '<!doctype><html><head><meta charset=utf-8>' +
-      '<title>Redirect</title></head>' +
-      '<body><p><a href="' + path + '">Continue</a></p></body></html>'
-    return pull.values([
-      [302, {
-        'Content-Length': Buffer.byteLength(msg),
-        'Content-Type': 'text/html',
-        Location: path
-      }],
-      msg
-    ])
+    return serveBuffer(302,
+      '<!doctype><html><head>' +
+      '<title>Redirect</title></head><body>' +
+      '<p><a href="' + escapeHTML(path) + '">Continue</a></p>' +
+      '</body></html>', 'text/html; charset=utf-8', {Location: path})
   }
 
   function serveMarkdown(text, repo) {
-    var html = markdown(text, repo)
-    return pull.values([
-      [200, {
-        'Content-Length': Buffer.byteLength(html),
-        'Content-Type': 'text/html; charset=utf-8'
-      }],
-      html
-    ])
+    return serveBuffer(200, markdown(text, repo), 'text/html; charset=utf-8')
   }
 
   function renderTry(read) {
@@ -1500,7 +1495,7 @@ module.exports = function (opts, cb) {
           ': ' + linkPath([repo.id, 'tree'], [rev].concat(path))
         var rawFilePath = [repo.id, 'raw', rev].concat(path)
         var filename = path[path.length-1]
-        var extension = filename.split('.').pop()
+        var extension = getExtension(filename)
         cb(null, renderRepoPage(repo, 'code', rev, cat([
           pull.once('<section><form action="" method="get">' +
             '<h3>' + type + ': ' + rev + ' '),
@@ -1536,8 +1531,8 @@ module.exports = function (opts, cb) {
   function serveRepoRaw(repo, branch, path) {
     return readNext(function (cb) {
       repo.getFile(branch, path, function (err, object) {
-        if (err) return cb(null, servePlainError(404, 'Blob not found'))
-        var extension = path[path.length-1].split('.').pop()
+        if (err) return cb(null, serveBuffer(404, 'Blob not found'))
+        var extension = getExtension(path[path.length-1])
         var contentType = imgMimes[extension]
         cb(null, pull(object.read, serveRaw(object.length, contentType)))
       })
