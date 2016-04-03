@@ -212,16 +212,6 @@ function renderPostForm(repo, placeholder, rows) {
   '<script>' + issueCommentScript + '</script>'
 }
 
-function wrap(tag) {
-  return function (read) {
-    return cat([
-      pull.once('<' + tag + '>'),
-      read,
-      pull.once('</' + tag + '>')
-    ])
-  }
-}
-
 function readNext(fn) {
   var next
   return function (end, cb) {
