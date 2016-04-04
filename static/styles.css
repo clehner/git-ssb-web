@@ -93,11 +93,12 @@ i {
 /* repo page */
 
 .repo-title {
-  height: 2.4em;
+  height: 2em;
 }
 
 .repo-title h2 {
   color: #888;
+  height: 1.2em;
 }
 
 .petname h2,

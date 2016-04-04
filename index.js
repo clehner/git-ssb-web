@@ -1020,10 +1020,18 @@ module.exports = function (opts, cb) {
     about.getName(repo.feed, done())
     getVotes(repo.id, done())
 
+    if (repo.upstream) {
+      getRepoName(about, repo.upstream.feed, repo.upstream.id, done())
+      about.getName(repo.upstream.feed, done())
+    }
+
     return readNext(function (cb) {
-      done(function (err, repoName, authorName, votes) {
+      done(function (err, repoName, authorName, votes,
+          upstreamName, upstreamAuthorName) {
         if (err) return cb(null, serveError(err))
         var upvoted = votes.upvoters[myId] > 0
+        var upstreamLink = !repo.upstream ? '' :
+          link([repo.upstream])
         cb(null, serveTemplate(repo.id)(cat([
           pull.once(
             '<div class="repo-title">' +
@@ -1044,6 +1052,11 @@ module.exports = function (opts, cb) {
               '<h2>' + link([repo.feed], authorName) + ' / ' +
                 link([repo.id], repoName) + '</h2>') +
             '</div>' +
+            (repo.upstream ?
+              '<small>forked from ' +
+                link([repo.upstream.feed], upstreamAuthorName) + '\'s ' +
+                link([repo.upstream.id], upstreamName) +
+              '</small>' : '') +
             nav([
               [[repo.id], 'Code', 'code'],
               [[repo.id, 'activity'], 'Activity', 'activity'],
