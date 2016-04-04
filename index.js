@@ -805,12 +805,23 @@ module.exports = function (opts, cb) {
     var authorLink = link([msg.value.author], msg.authorName)
     switch (c.type) {
       case 'git-repo':
-        return getRepoName(about, author, msg.key, function (err, repoName) {
-          if (err) return cb(err)
-          var repoLink = link([msg.key], repoName)
-          cb(null, '<section class="collapse">' + msgLink + '<br>' +
-            authorLink + ' created repo ' + repoLink + '</section>')
-        })
+        var done = multicb({ pluck: 1, spread: true })
+        getRepoName(about, author, msg.key, done())
+        if (c.upstream) {
+          getRepoName(about, author, c.upstream, done())
+          return done(function (err, repoName, upstreamName) {
+            cb(null, '<section class="collapse">' + msgLink + '<br>' +
+              authorLink + ' forked ' + link([c.upstream], upstreamName) +
+              ' to ' + link([msg.key], repoName) + '</section>')
+          })
+        } else {
+          return done(function (err, repoName) {
+            if (err) return cb(err)
+            var repoLink = link([msg.key], repoName)
+            cb(null, '<section class="collapse">' + msgLink + '<br>' +
+              authorLink + ' created repo ' + repoLink + '</section>')
+          })
+        }
       case 'git-update':
         return getRepoName(about, author, c.repo, function (err, repoName) {
           if (err) return cb(err)
