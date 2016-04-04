@@ -510,8 +510,24 @@ module.exports = function (opts, cb) {
           if (!data) return cb(null, serveError(new Error('No data'), 400))
 
           switch (data.action) {
+            case 'repo':
+              if (data.fork != null) {
+                var repoId = data.id
+                if (!repoId) return cb(null,
+                  serveError(new Error('Missing repo id'), 400))
+                ssbGit.createRepo(ssb, {upstream: repoId},
+                  function (err, repo) {
+                    if (err) return cb(null, serveError(err))
+                    cb(null, serveRedirect(encodeLink(repo.id)))
+                  })
+              } else if (data.vote != null) {
+                // fallthrough
+              } else {
+                return cb(null, serveError(new Error('Unknown action'), 400))
+              }
+
             case 'vote':
-              var voteValue = +data.vote || 0
+              var voteValue = +data.value || 0
               if (!data.id)
                 return cb(null, serveError(new Error('Missing vote id'), 400))
               var msg = schemas.vote(data.id, voteValue)
@@ -519,7 +535,6 @@ module.exports = function (opts, cb) {
                 if (err) return cb(null, serveError(err))
                 cb(null, serveRedirect(req.url))
               })
-              return
 
           case 'repo-name':
             if (!data.name)
@@ -1040,12 +1055,16 @@ module.exports = function (opts, cb) {
               (isPublic ? 'disabled="disabled"' : ' type="submit"') + '>' +
                 '<i>✌</i> ' + (!isPublic && upvoted ? 'Undig' : 'Dig') +
                 '</button>' +
-              (isPublic ? '' : '<input type="hidden" name="vote" value="' +
+              (isPublic ? '' : '<input type="hidden" name="value" value="' +
                   (upvoted ? '0' : '1') + '">' +
-                '<input type="hidden" name="action" value="vote">' +
+                '<input type="hidden" name="action" value="repo">' +
                 '<input type="hidden" name="id" value="' +
                   escapeHTML(repo.id) + '">') + ' ' +
-              '<strong>' + link(digsPath, votes.upvotes) + '</strong>' +
+              '<strong>' + link(digsPath, votes.upvotes) + '</strong> ' +
+              (isPublic ? '' :
+                '<button class="btn" type="submit" name="fork">' +
+                '<i>⑂</i> Fork' +
+                '</button>') +
             '</form>' +
             renderNameForm(!isPublic, repo.id, repoName, 'repo-name', null,
               'Rename the repo',
