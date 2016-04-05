@@ -677,6 +677,12 @@ module.exports = function (opts, cb) {
     return serveBuffer(200, markdown(text, repo), 'text/html; charset=utf-8')
   }
 
+  function renderError(err, tag) {
+    tag = tag || 'h3'
+    return '<' + tag + '>' + err.name + '</' + tag + '>' +
+      '<pre>' + escapeHTML(err.stack) + '</pre>'
+  }
+
   function renderTry(read) {
     var ended
     return function (end, cb) {
@@ -686,9 +692,7 @@ module.exports = function (opts, cb) {
           cb(true)
         else if (err) {
           ended = true
-          cb(null,
-            '<h3>' + err.name + '</h3>' +
-            '<pre>' + escapeHTML(err.stack) + '</pre>')
+          cb(null, renderError(err, 'h3'))
         } else
           cb(null, data)
       })
@@ -723,9 +727,7 @@ module.exports = function (opts, cb) {
     if (err.message == 'stream is closed')
       reconnect()
     return pull(
-      pull.once(
-        '<h2>' + err.name + '</h3>' +
-        '<pre>' + escapeHTML(err.stack) + '</pre>'),
+      pull.once(renderError(err, 'h2')),
       serveTemplate(err.name, status || 500)
     )
   }
