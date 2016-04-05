@@ -1489,24 +1489,22 @@ module.exports = function (opts, cb) {
         pull.once('<h3>Commits</h3>'),
         pull(
           pull.values(msg.content.packs),
-          paramap(function (pack, cb) {
-            var key = pack.pack.link
-            ssb.blobs.want(key, function (err, got) {
-              if (err) cb(err)
-              else if (!got) cb(null, pull.once('Missing blob ' + key))
-              else cb(null, ssb.blobs.get(key))
+          pull.asyncMap(function (pack, cb) {
+            var done = multicb({ pluck: 1, spread: true })
+            getBlob(pack.pack.link, done())
+            getBlob(pack.idx.link, done())
+            done(function (err, readPack, readIdx) {
+              if (err) return cb(renderError(err))
+              cb(null, gitPack.decodeWithIndex(repo, readPack, readIdx))
             })
-          }, 8),
-          pull.map(function (readPack, cb) {
-            return gitPack.decode({}, repo, cb, readPack)
           }),
           pull.flatten(),
-          paramap(function (obj, cb) {
+          pull.asyncMap(function (obj, cb) {
             if (obj.type == 'commit')
               Repo.getCommitParsed(obj, cb)
             else
               pull(obj.read, pull.drain(null, cb))
-          }, 8),
+          }),
           pull.filter(),
           pull.map(function (commit) {
             return renderCommit(repo, commit)
@@ -1602,13 +1600,19 @@ module.exports = function (opts, cb) {
     }
   }
 
+  function getBlob(key, cb) {
+    ssb.blobs.want(key, function (err, got) {
+      if (err) cb(err)
+      else if (!got) cb(new Error('Missing blob ' + key))
+      else cb(null, ssb.blobs.get(key))
+    })
+  }
+
   function serveBlob(req, key) {
-    return readNext(function (cb) {
-      ssb.blobs.want(key, function (err, got) {
-        if (err) cb(null, serveError(err))
-        else if (!got) cb(null, serve404(req))
-        else cb(null, serveRaw()(ssb.blobs.get(key)))
-      })
+    getBlob(key, function (err, read) {
+      if (err) cb(null, serveError(err))
+      else if (!got) cb(null, serve404(req))
+      else cb(null, serveRaw()(read))
     })
   }
 
