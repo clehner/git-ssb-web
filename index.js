@@ -1159,7 +1159,20 @@ module.exports = function (opts, cb) {
           reverse: true
         }),
         pull.map(renderRepoUpdate.bind(this, repo))
-      )
+      ),
+      readOnce(function (cb) {
+        var done = multicb({ pluck: 1, spread: true })
+        about.getName(repo.feed, done())
+        getMsg(repo.id, done())
+        done(function (err, authorName, msg) {
+          if (err) return cb(err)
+          renderFeedItem({
+            key: repo.id,
+            value: msg,
+            authorName: authorName
+          }, cb)
+        })
+      })
     ]))
   }
 
