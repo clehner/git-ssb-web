@@ -1014,6 +1014,8 @@ module.exports = function (opts, cb) {
         return serveRepoRaw(repo, branch, filePath)
       case 'digs':
         return serveRepoDigs(repo)
+      case 'forks':
+        return serveRepoForks(repo)
       case 'issues':
         switch (path[1]) {
           case 'new':
@@ -1077,7 +1079,8 @@ module.exports = function (opts, cb) {
               (isPublic ? '' :
                 '<button class="btn" type="submit" name="fork">' +
                 '<i>⑂</i> Fork' +
-                '</button>') +
+                '</button>') + ' ' +
+              link([repo.id, 'forks'], '+', false, ' title="Forks"') +
             '</form>' +
             renderNameForm(!isPublic, repo.id, repoName, 'repo-name', null,
               'Rename the repo',
@@ -1638,6 +1641,46 @@ module.exports = function (opts, cb) {
         ])))
       })
     })
+  }
+
+  /* Forks */
+
+  function serveRepoForks(repo) {
+    var hasForks
+    return renderRepoPage(repo, null, null, cat([
+      pull.once('<h3>Forks</h3>'),
+      pull(
+        ssb.links({
+          dest: repo.id,
+          values: true,
+          rel: 'upstream'
+        }),
+        pull.filter(function (msg) {
+          var c = msg.value.content
+          return (c && c.type == 'git-repo')
+        }),
+        paramap(function (msg, cb) {
+          hasForks = true
+          var author = msg.value.author
+          var done = multicb({ pluck: 1, spread: true })
+          getRepoName(about, author, msg.key, done())
+          about.getName(author, done())
+          done(function (err, repoName, authorName) {
+            if (err) return cb(err)
+            var authorLink = link([author], authorName)
+            var repoLink = link([msg.key], repoName)
+            cb(null, '<section class="collapse">' +
+              authorLink + ' / ' + repoLink +
+              '<span class="right-bar">' +
+              timestamp(msg.value.timestamp) +
+              '</span></section>')
+          })
+        }, 8)
+      ),
+      readOnce(function (cb) {
+        cb(null, hasForks ? '' : 'No forks')
+      })
+    ]))
   }
 
   /* Issues */
