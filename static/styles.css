@@ -341,9 +341,9 @@ h3 .user-id {
   padding: 0 1ex 0;
 }
 
-.active-hash,
+:target,
 .code tr:hover {
-  background-color: #fff8d2;
+  background-color: #fff8d2 !important;
 }
 
 .code-linenum {

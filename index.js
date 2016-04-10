@@ -407,20 +407,6 @@ var issueCommentScript = '(' + function () {
   }
 }.toString() + ')()'
 
-var hashHighlightScript = '<script>(' + function () {
-  var activeEl
-  function onHashChange() {
-    var el = document.getElementById(location.hash.substr(1))
-    if (activeEl)
-      activeEl.classList.remove('active-hash')
-    if (el)
-      el.classList.add('active-hash')
-    activeEl = el
-  }
-  onHashChange()
-  window.addEventListener('hashchange', onHashChange, false)
-}.toString() + ')()</script>'
-
 var msgTypes = {
   'git-repo': true,
   'git-update': true,
@@ -740,7 +726,7 @@ module.exports = function (opts, cb) {
         if (err) return cb(err)
         cb(null, (ext == 'md' || ext == 'markdown')
           ? markdown(buf, repo)
-          : renderCodeTable(buf, ext) + hashHighlightScript)
+          : renderCodeTable(buf, ext))
       })
     })
   }
@@ -1416,7 +1402,7 @@ module.exports = function (opts, cb) {
           })
         }, 4)
       ),
-      pull.once('</section>' + hashHighlightScript),
+      pull.once('</section>'),
     ])
   }
 
