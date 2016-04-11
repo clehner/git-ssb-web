@@ -16,11 +16,13 @@ var asyncMemo = require('asyncmemo')
 var multicb = require('multicb')
 var schemas = require('ssb-msg-schemas')
 var Issues = require('ssb-issues')
+var PullRequests = require('ssb-pull-requests')
 var paramap = require('pull-paramap')
 var gitPack = require('pull-git-pack')
 var Mentions = require('ssb-mentions')
 var Highlight = require('highlight.js')
 var JsDiff = require('diff')
+var many = require('pull-many')
 
 var hlCssPath = path.resolve(require.resolve('highlight.js'), '../../styles')
 
@@ -212,6 +214,14 @@ function renderPostForm(repo, placeholder, rows) {
   '<script>' + issueCommentScript + '</script>'
 }
 
+function hiddenInputs(values) {
+  return Object.keys(values).map(function (key) {
+    return '<input type="hidden"' +
+      ' name="' + escapeHTML(key) + '"' +
+      ' value="' + escapeHTML(values[key]) + '"/>'
+  }).join('')
+}
+
 function readNext(fn) {
   var next
   return function (end, cb) {
@@ -344,9 +354,18 @@ function getRepoName(about, ownerId, repoId, cb) {
   }, cb)
 }
 
+function getRepoFullName(about, author, repoId, cb) {
+  var done = multicb({ pluck: 1, spread: true })
+  getRepoName(about, author, repoId, done())
+  about.getName(author, done())
+  done(cb)
+}
+
 function addAuthorName(about) {
   return paramap(function (msg, cb) {
-    about.getName(msg.value.author, function (err, authorName) {
+    var author = msg && msg.value && msg.value.author
+    if (!author) return cb(null, msg)
+    about.getName(author, function (err, authorName) {
       msg.authorName = authorName
       cb(err, msg)
     })
@@ -410,7 +429,8 @@ var issueCommentScript = '(' + function () {
 var msgTypes = {
   'git-repo': true,
   'git-update': true,
-  'issue': true
+  'issue': true,
+  'pull-request': true
 }
 
 var imgMimes = {
@@ -452,6 +472,7 @@ module.exports = function (opts, cb) {
         getVotes = ssbVotes(ssb)
         getMsg = asyncMemo(ssb.get)
         issues = Issues.init(ssb)
+        pullReqs = PullRequests.init(ssb)
       })
     }
   }
@@ -565,6 +586,17 @@ module.exports = function (opts, cb) {
 
           case 'new-issue':
             var msg = Issues.schemas.new(dir, data.title, data.text)
+            var mentions = Mentions(data.text)
+            if (mentions.length)
+              msg.mentions = mentions
+            return ssb.publish(msg, function (err, msg) {
+              if (err) return cb(null, serveError(err))
+              cb(null, serveRedirect(encodeLink(msg.key)))
+            })
+
+          case 'new-pull':
+            var msg = PullRequests.schemas.new(dir, data.branch,
+              data.head_repo, data.head_branch, data.title, data.text)
             var mentions = Mentions(data.text)
             if (mentions.length)
               msg.mentions = mentions
@@ -818,12 +850,13 @@ module.exports = function (opts, cb) {
             authorLink + ' pushed to ' + repoLink + '</section>')
         })
       case 'issue':
+      case 'pull-request':
         var issueLink = link([msg.key], c.title)
         return getRepoName(about, author, c.project, function (err, repoName) {
           if (err) return cb(err)
           var repoLink = link([c.project], repoName)
           cb(null, '<section class="collapse">' + msgLink + '<br>' +
-            authorLink + ' opened issue ' + issueLink +
+            authorLink + ' opened ' + c.type + ' ' + issueLink +
             ' on ' + repoLink + '</section>')
         })
     }
@@ -913,17 +946,43 @@ module.exports = function (opts, cb) {
                 cb(null, serveRepoIssue(req, Repo(repo), issue, path))
               })
             })
+          case 'pull-request':
+            return getRepo(c.repo, function (err, repo) {
+              if (err) return cb(null, serveRepoNotFound(c.project, err))
+              pullReqs.get(id, function (err, pr) {
+                if (err) return cb(null, serveError(err))
+                cb(null, serveRepoPullReq(req, Repo(repo), pr, path))
+              })
+            })
+          case 'issue-edit':
+            if (ref.isMsgId(c.issue)) {
+              return pullReqs.get(c.issue, function (err, issue) {
+                if (err) return cb(err)
+                var serve = issue.msg.value.content.type == 'pull-request' ?
+                  serveRepoPullReq : serveRepoIssue
+                getRepo(issue.project, function (err, repo) {
+                  if (err) {
+                    if (!repo) return cb(null, serveRepoNotFound(c.repo, err))
+                    return cb(null, serveError(err))
+                  }
+                  cb(null, serve(req, Repo(repo), issue, path, id))
+                })
+              })
+            }
+            // fallthrough
           case 'post':
             if (ref.isMsgId(c.issue) && ref.isMsgId(c.repo)) {
               var done = multicb({ pluck: 1, spread: true })
               getRepo(c.repo, done())
-              issues.get(c.issue, done())
+              pullReqs.get(c.issue, done())
               return done(function (err, repo, issue) {
                 if (err) {
                   if (!repo) return cb(null, serveRepoNotFound(c.repo, err))
                   return cb(null, serveError(err))
                 }
-                cb(null, serveRepoIssue(req, Repo(repo), issue, path, id))
+                var serve = issue.msg.value.content.type == 'pull-request' ?
+                  serveRepoPullReq : serveRepoIssue
+                cb(null, serve(req, Repo(repo), issue, path, id))
               })
             }
             // fallthrough
@@ -1009,8 +1068,14 @@ module.exports = function (opts, cb) {
               return serveRepoNewIssue(repo)
             break
           default:
-            return serveRepoIssues(req, repo, branch, filePath)
+            return serveRepoIssues(req, repo, filePath)
         }
+      case 'pulls':
+        return serveRepoPullReqs(req, repo)
+      case 'compare':
+        return serveRepoCompare(req, repo)
+      case 'comparing':
+        return serveRepoComparing(req, repo)
       default:
         return serve404(req)
     }
@@ -1027,7 +1092,7 @@ module.exports = function (opts, cb) {
   function renderRepoPage(repo, page, branch, body) {
     var gitUrl = 'ssb://' + repo.id
     var gitLink = '<input class="clone-url" readonly="readonly" ' +
-      'value="' + gitUrl + '" size="61" ' +
+      'value="' + gitUrl + '" size="45" ' +
       'onclick="this.select()"/>'
     var digsPath = [repo.id, 'digs']
 
@@ -1070,7 +1135,7 @@ module.exports = function (opts, cb) {
             '</form>' +
             renderNameForm(!isPublic, repo.id, repoName, 'repo-name', null,
               'Rename the repo',
-              '<h2>' + link([repo.feed], authorName) + ' / ' +
+              '<h2 class="bgslash">' + link([repo.feed], authorName) + ' / ' +
                 link([repo.id], repoName) + '</h2>') +
             '</div>' +
             (repo.upstream ?
@@ -1082,7 +1147,8 @@ module.exports = function (opts, cb) {
               [[repo.id], 'Code', 'code'],
               [[repo.id, 'activity'], 'Activity', 'activity'],
               [[repo.id, 'commits', branch || ''], 'Commits', 'commits'],
-              [[repo.id, 'issues'], 'Issues', 'issues']
+              [[repo.id, 'issues'], 'Issues', 'issues'],
+              [[repo.id, 'pulls'], 'Pull Requests', 'pulls']
             ], page, gitLink)),
           body
         ])))
@@ -1137,7 +1203,6 @@ module.exports = function (opts, cb) {
       pull.once('<h3>Activity</h3>'),
       pull(
         ssb.links({
-          type: 'git-update',
           dest: repo.id,
           source: repo.feed,
           rel: 'repo',
@@ -1164,6 +1229,12 @@ module.exports = function (opts, cb) {
 
   function renderRepoUpdate(repo, msg, full) {
     var c = msg.value.content
+
+    if (c.type != 'git-update') {
+      return ''
+      // return renderFeedItem(msg, cb)
+      // TODO: render post, issue, pull-request
+    }
 
     var refs = c.refs ? Object.keys(c.refs).map(function (ref) {
       return {name: ref, value: c.refs[ref]}
@@ -1223,7 +1294,16 @@ module.exports = function (opts, cb) {
       '</section>'
 }
 
-  /* Repo tree */
+  /* Branch menu */
+
+  function formatRevOptions(currentName) {
+    return function (name) {
+      var htmlName = escapeHTML(name)
+      return '<option value="' + htmlName + '"' +
+        (name == currentName ? ' selected="selected"' : '') +
+        '>' + htmlName + '</option>'
+    }
+  }
 
   function revMenu(repo, currentName) {
     return readOnce(function (cb) {
@@ -1232,17 +1312,32 @@ module.exports = function (opts, cb) {
         cb(null, '<select name="rev" onchange="this.form.submit()">' +
           Object.keys(refs).map(function (group) {
             return '<optgroup label="' + group + '">' +
-              refs[group].map(function (name) {
-                var htmlName = escapeHTML(name)
-                return '<option value="' + htmlName + '"' +
-                  (name == currentName ? ' selected="selected"' : '') +
-                  '>' + htmlName + '</option>'
-              }).join('') + '</optgroup>'
+              refs[group].map(formatRevOptions(currentName)).join('') +
+              '</optgroup>'
           }).join('') +
           '</select><noscript> <input type="submit" value="Go"/></noscript>')
       })
     })
   }
+
+  function branchMenu(repo, name, currentName) {
+    return cat([
+      pull.once('<select name="' + name + '">'),
+      pull(
+        repo.refs(),
+        pull.map(function (ref) {
+          var m = ref.name.match(/^refs\/([^\/]*)\/(.*)$/) || [,, ref.name]
+          return m[1] == 'heads' && m[2]
+        }),
+        pull.filter(Boolean),
+        pullSort(),
+        pull.map(formatRevOptions(currentName))
+      ),
+      pull.once('</select>')
+    ])
+  }
+
+  /* Repo tree */
 
   function renderRepoLatest(repo, rev) {
     return readOnce(function (cb) {
@@ -1346,8 +1441,11 @@ module.exports = function (opts, cb) {
             commit.parents.map(function (id) {
               return 'Parent: ' + link([repo.id, 'commit', id], id)
             }).join('<br>') +
-            '</section>'),
-            renderDiffStat(repo, commit.id, commit.parents)
+            '</section>' +
+            '<section><h3>Files changed</h3>'),
+            // TODO: show diff from all parents (merge commits)
+            renderDiffStat([repo, repo], [commit.parents[0], commit.id]),
+            pull.once('</section>')
           ]))
         })
       })
@@ -1356,15 +1454,15 @@ module.exports = function (opts, cb) {
 
   /* Diff stat */
 
-  function renderDiffStat(repo, id, parentIds) {
-    if (parentIds.length == 0) parentIds = [null]
-    var lastI = parentIds.length
-    var oldTree = parentIds[0]
+  function renderDiffStat(repos, treeIds) {
+    if (treeIds.length == 0) treeIds = [null]
+    var id = treeIds[0]
+    var lastI = treeIds.length - 1
+    var oldTree = treeIds[0]
     var changedFiles = []
     return cat([
-      pull.once('<section><h3>Files changed</h3>'),
       pull(
-        repo.diffTrees(parentIds.concat(id), true),
+        Repo.diffTrees(repos, treeIds, true),
         pull.map(function (item) {
           var filename = item.filename = escapeHTML(item.path.join('/'))
           var oldId = item.id && item.id[0]
@@ -1382,7 +1480,7 @@ module.exports = function (opts, cb) {
             changedFiles.push(item)
           var fileHref = item.id ?
             '#' + encodeURIComponent(item.path.join('/')) :
-            encodeLink([repo.id, 'blob', id].concat(item.path))
+            encodeLink([repos[0].id, 'blob', id].concat(item.path))
           return ['<a href="' + fileHref + '">' + filename + '</a>', action]
         }),
         table()
@@ -1391,18 +1489,17 @@ module.exports = function (opts, cb) {
         pull.values(changedFiles),
         paramap(function (item, cb) {
           var done = multicb({ pluck: 1, spread: true })
-          getRepoObjectString(repo, item.id[0], done())
-          getRepoObjectString(repo, item.id[lastI], done())
+          getRepoObjectString(repos[0], item.id[0], done())
+          getRepoObjectString(repos[1], item.id[lastI], done())
           done(function (err, strOld, strNew) {
             if (err) return cb(err)
-            var commitId = item.id[lastI] ? id : parentIds.filter(Boolean)[0]
+            var commitId = item.id[lastI] ? id : treeIds.filter(Boolean)[0]
             cb(null, htmlLineDiff(item.filename, item.filename,
               strOld, strNew,
-              encodeLink([repo.id, 'blob', commitId].concat(item.path))))
+              encodeLink([repos[0].id, 'blob', commitId].concat(item.path))))
           })
         }, 4)
-      ),
-      pull.once('</section>'),
+      )
     ])
   }
 
@@ -1644,37 +1741,53 @@ module.exports = function (opts, cb) {
 
   /* Forks */
 
+  function getForks(repo, includeSelf) {
+    return pull(
+      cat([
+        includeSelf && readOnce(function (cb) {
+          getMsg(repo.id, function (err, value) {
+            cb(err, value && {key: repo.id, value: value})
+          })
+        }),
+        ssb.links({
+          dest: repo.id,
+          values: true,
+          rel: 'upstream'
+        })
+      ]),
+      pull.filter(function (msg) {
+        return msg.value.content && msg.value.content.type == 'git-repo'
+      }),
+      paramap(function (msg, cb) {
+        getRepoFullName(about, msg.value.author, msg.key,
+            function (err, repoName, authorName) {
+          if (err) return cb(err)
+          cb(null, {
+            key: msg.key,
+            value: msg.value,
+            repoName: repoName,
+            authorName: authorName
+          })
+        })
+      }, 8)
+    )
+  }
+
   function serveRepoForks(repo) {
     var hasForks
     return renderRepoPage(repo, null, null, cat([
       pull.once('<h3>Forks</h3>'),
       pull(
-        ssb.links({
-          dest: repo.id,
-          values: true,
-          rel: 'upstream'
-        }),
-        pull.filter(function (msg) {
-          var c = msg.value.content
-          return (c && c.type == 'git-repo')
-        }),
-        paramap(function (msg, cb) {
+        getForks(repo),
+        pull.map(function (msg) {
           hasForks = true
-          var author = msg.value.author
-          var done = multicb({ pluck: 1, spread: true })
-          getRepoName(about, author, msg.key, done())
-          about.getName(author, done())
-          done(function (err, repoName, authorName) {
-            if (err) return cb(err)
-            var authorLink = link([author], authorName)
-            var repoLink = link([msg.key], repoName)
-            cb(null, '<section class="collapse">' +
-              authorLink + ' / ' + repoLink +
-              '<span class="right-bar">' +
-              timestamp(msg.value.timestamp) +
-              '</span></section>')
-          })
-        }, 8)
+          return '<section class="collapse">' +
+            link([msg.value.author], msg.authorName) + ' / ' +
+            link([msg.key], msg.repoName) +
+            '<span class="right-bar">' +
+            timestamp(msg.value.timestamp) +
+            '</span></section>'
+        })
       ),
       readOnce(function (cb) {
         cb(null, hasForks ? '' : 'No forks')
@@ -1684,7 +1797,7 @@ module.exports = function (opts, cb) {
 
   /* Issues */
 
-  function serveRepoIssues(req, repo, issueId, path) {
+  function serveRepoIssues(req, repo, path) {
     var numIssues = 0
     var state = req._u.query.state || 'open'
     return renderRepoPage(repo, 'issues', null, cat([
@@ -1725,6 +1838,49 @@ module.exports = function (opts, cb) {
     ]))
   }
 
+  /* Pull Requests */
+
+  function serveRepoPullReqs(req, repo) {
+    var count = 0
+    var state = req._u.query.state || 'open'
+    return renderRepoPage(repo, 'pulls', null, cat([
+      pull.once(
+        (isPublic ? '' :
+          '<div class="right-bar">' + link([repo.id, 'compare'],
+            '<button class="btn">&plus; New Pull Request</button>', true) +
+          '</div>') +
+        '<h3>Pull Requests</h3>' +
+        nav([
+          ['?', 'Open', 'open'],
+          ['?state=closed', 'Closed', 'closed'],
+          ['?state=all', 'All', 'all']
+        ], state)),
+      pull(
+        pullReqs.list({
+          repo: repo.id,
+          open: {open: true, closed: false}[state]
+        }),
+        pull.map(function (issue) {
+          count++
+          var state = (issue.open ? 'open' : 'closed')
+          return '<section class="collapse">' +
+            '<i class="issue-state issue-state-' + state + '"' +
+              ' title="' + ucfirst(state) + '">◼</i> ' +
+            '<a href="' + encodeLink(issue.id) + '">' +
+              escapeHTML(issue.title) +
+              '<span class="right-bar">' +
+                new Date(issue.created_at).toLocaleString() +
+              '</span>' +
+            '</a>' +
+            '</section>'
+        })
+      ),
+      readOnce(function (cb) {
+        cb(null, count > 0 ? '' : '<p>No pull requests</p>')
+      })
+    ]))
+  }
+
   /* New Issue */
 
   function serveRepoNewIssue(repo, issueId, path) {
@@ -1757,13 +1913,11 @@ module.exports = function (opts, cb) {
         about.getName(issue.author, function (err, authorName) {
           if (err) return cb(err)
           var authorLink = link([issue.author], authorName)
-          cb(null,
-            authorLink + ' opened this issue on ' + timestamp(issue.created_at) +
-            '<hr/>' +
-            markdown(issue.text, repo) +
-            '</section>')
+          cb(null, authorLink + ' opened this issue on ' +
+              timestamp(issue.created_at))
         })
       }),
+      pull.once('<hr/>' + markdown(issue.text, repo) + '</section>'),
       // render posts and edits
       pull(
         ssb.links({
@@ -1773,100 +1927,452 @@ module.exports = function (opts, cb) {
         pull.unique('key'),
         addAuthorName(about),
         sortMsgs(),
-        pull.map(function (msg) {
-          var authorLink = link([msg.value.author], msg.authorName)
-          var msgTimeLink = link([msg.key],
-            new Date(msg.value.timestamp).toLocaleString(), false,
-            'name="' + escapeHTML(msg.key) + '"')
-          var c = msg.value.content
+        pull.through(function (msg) {
           if (msg.value.timestamp > newestMsg.value.timestamp)
             newestMsg = msg
-          switch (c.type) {
-            case 'post':
-              if (c.root == issue.id) {
-                var changed = issues.isStatusChanged(msg, issue)
-                return '<section class="collapse">' +
-                  (msg.key == postId ? '<div class="highlight">' : '') +
-                  authorLink +
-                  (changed == null ? '' : ' ' + (
-                    changed ? 'reopened this issue' : 'closed this issue')) +
-                  ' &middot; ' + msgTimeLink +
-                  (msg.key == postId ? '</div>' : '') +
-                  markdown(c.text, repo) +
-                  '</section>'
-              } else {
-                var text = c.text || (c.type + ' ' + msg.key)
-                return '<section class="collapse mention-preview">' +
-                  authorLink + ' mentioned this issue in ' +
-                  '<a href="/' + msg.key + '#' + msg.key + '">' +
-                    String(text).substr(0, 140) + '</a>' +
-                  '</section>'
-              }
-            case 'issue':
-              return '<section class="collapse mention-preview">' +
-                authorLink + ' mentioned this issue in ' +
-                link([msg.key], String(c.title || msg.key).substr(0, 140)) +
-                '</section>'
-            case 'issue-edit':
-              return '<section class="collapse">' +
-                (c.title == null ? '' :
-                  authorLink + ' renamed this issue to <q>' +
-                  escapeHTML(c.title) + '</q>') +
-                  ' &middot; ' + msgTimeLink +
-                '</section>'
-            case 'git-update':
-              var mention = issues.getMention(msg, issue)
-              if (mention) {
-                var commitLink = link([repo.id, 'commit', mention.object],
-                  mention.label || mention.object)
-                return '<section class="collapse">' +
-                  authorLink + ' ' +
-                  (mention.open ? 'reopened this issue' :
-                    'closed this issue') +
-                  ' &middot; ' + msgTimeLink + '<br/>' +
-                  commitLink +
-                  '</section>'
-              } else if ((mention = getMention(msg, issue.id))) {
-                var commitLink = link(mention.object ?
-                  [repo.id, 'commit', mention.object] : [msg.key],
-                  mention.label || mention.object || msg.key)
-                return '<section class="collapse">' +
-                  authorLink + ' mentioned this issue' +
-                  ' &middot; ' + msgTimeLink + '<br/>' +
-                  commitLink +
-                  '</section>'
-              } else {
-                // fallthrough
-              }
-
-            default:
-              return '<section class="collapse">' +
-                authorLink +
-                ' &middot; ' + msgTimeLink +
-                json(c) +
-                '</section>'
-          }
-        })
+        }),
+        pull.map(renderIssueActivityMsg.bind(null, repo, issue,
+          'issue', postId))
       ),
-      isPublic ? pull.empty() : readOnce(renderCommentForm)
+      isPublic ? pull.empty() : readOnce(function (cb) {
+        cb(null, renderIssueCommentForm(issue, repo, newestMsg.key, isAuthor,
+          'issue'))
+      })
     ]))
+  }
 
-    function renderCommentForm(cb) {
-      cb(null, '<section><form action="" method="post">' +
-        '<input type="hidden" name="action" value="comment">' +
-        '<input type="hidden" name="id" value="' + issue.id + '">' +
-        '<input type="hidden" name="issue" value="' + issue.id + '">' +
-        '<input type="hidden" name="repo" value="' + repo.id + '">' +
-        '<input type="hidden" name="branch" value="' + newestMsg.key + '">' +
-        renderPostForm(repo) +
-        '<input type="submit" class="btn open" value="Comment" />' +
-        (isAuthor ?
-          '<input type="submit" class="btn"' +
-          ' name="' + (issue.open ? 'close' : 'open') + '"' +
-          ' value="' + (issue.open ? 'Close issue' : 'Reopen issue') + '"' +
-          '/>' : '') +
-        '</form></section>')
+  function renderIssueActivityMsg(repo, issue, type, postId, msg) {
+    var authorLink = link([msg.value.author], msg.authorName)
+    var msgTimeLink = link([msg.key],
+      new Date(msg.value.timestamp).toLocaleString(), false,
+      'name="' + escapeHTML(msg.key) + '"')
+    var c = msg.value.content
+    switch (c.type) {
+      case 'post':
+        if (c.root == issue.id) {
+          var changed = issues.isStatusChanged(msg, issue)
+          return '<section class="collapse">' +
+            (msg.key == postId ? '<div class="highlight">' : '') +
+            authorLink +
+            (changed == null ? '' : ' ' + (
+              changed ? 'reopened this ' : 'closed this ') + type) +
+            ' &middot; ' + msgTimeLink +
+            (msg.key == postId ? '</div>' : '') +
+            markdown(c.text, repo) +
+            '</section>'
+        } else {
+          var text = c.text || (c.type + ' ' + msg.key)
+          return '<section class="collapse mention-preview">' +
+            authorLink + ' mentioned this issue in ' +
+            '<a href="/' + msg.key + '#' + msg.key + '">' +
+              String(text).substr(0, 140) + '</a>' +
+            '</section>'
+        }
+      case 'issue':
+      case 'pull-request':
+        return '<section class="collapse mention-preview">' +
+          authorLink + ' mentioned this ' + type + ' in ' +
+          link([msg.key], String(c.title || msg.key).substr(0, 140)) +
+          '</section>'
+      case 'issue-edit':
+        return '<section class="collapse">' +
+          (msg.key == postId ? '<div class="highlight">' : '') +
+          (c.title == null ? '' :
+            authorLink + ' renamed this ' + type + ' to <q>' +
+            escapeHTML(c.title) + '</q>') +
+            ' &middot; ' + msgTimeLink +
+            (msg.key == postId ? '</div>' : '') +
+          '</section>'
+      case 'git-update':
+        var mention = issues.getMention(msg, issue)
+        if (mention) {
+          var commitLink = link([repo.id, 'commit', mention.object],
+            mention.label || mention.object)
+          return '<section class="collapse">' +
+            authorLink + ' ' +
+            (mention.open ? 'reopened this ' :
+              'closed this ') + type +
+            ' &middot; ' + msgTimeLink + '<br/>' +
+            commitLink +
+            '</section>'
+        } else if ((mention = getMention(msg, issue.id))) {
+          var commitLink = link(mention.object ?
+            [repo.id, 'commit', mention.object] : [msg.key],
+            mention.label || mention.object || msg.key)
+          return '<section class="collapse">' +
+            authorLink + ' mentioned this ' + type +
+            ' &middot; ' + msgTimeLink + '<br/>' +
+            commitLink +
+            '</section>'
+        } else {
+          // fallthrough
+        }
+
+      default:
+        return '<section class="collapse">' +
+          authorLink +
+          ' &middot; ' + msgTimeLink +
+          json(c) +
+          '</section>'
     }
   }
 
+  function renderIssueCommentForm(issue, repo, branch, isAuthor, type) {
+    return '<section><form action="" method="post">' +
+      '<input type="hidden" name="action" value="comment">' +
+      '<input type="hidden" name="id" value="' + issue.id + '">' +
+      '<input type="hidden" name="issue" value="' + issue.id + '">' +
+      '<input type="hidden" name="repo" value="' + repo.id + '">' +
+      '<input type="hidden" name="branch" value="' + branch + '">' +
+      renderPostForm(repo) +
+      '<input type="submit" class="btn open" value="Comment" />' +
+      (isAuthor ?
+        '<input type="submit" class="btn"' +
+        ' name="' + (issue.open ? 'close' : 'open') + '"' +
+        ' value="' + (issue.open ? 'Close ' : 'Reopen ') + type + '"' +
+        '/>' : '') +
+      '</form></section>'
+  }
+
+  /* Pull Request */
+
+  function serveRepoPullReq(req, repo, pr, path, postId) {
+    var headRepo, authorLink
+    var page = path[0] || 'activity'
+    return renderRepoPage(repo, 'pulls', null, cat([
+      pull.once('<div class="pull-request">' +
+        renderNameForm(!isPublic, pr.id, pr.title, 'issue-title', null,
+          'Rename the pull request',
+          '<h3>' + link([pr.id], pr.title) + '</h3>') +
+        '<code>' + pr.id + '</code>'),
+      readOnce(function (cb) {
+        var done = multicb({ pluck: 1, spread: true })
+        about.getName(pr.author, done())
+        var sameRepo = (pr.headRepo == pr.baseRepo)
+        getRepo(pr.headRepo, function (err, headRepo) {
+          if (err) return cb(err)
+          done()(null, headRepo)
+          getRepoName(about, headRepo.feed, headRepo.id, done())
+          about.getName(headRepo.feed, done())
+        })
+
+        done(function (err, issueAuthorName, _headRepo,
+            headRepoName, headRepoAuthorName) {
+          if (err) return cb(err)
+          headRepo = _headRepo
+          authorLink = link([pr.author], issueAuthorName)
+          var repoLink = link([pr.headRepo], headRepoName)
+          var headRepoAuthorLink = link([headRepo.feed], headRepoAuthorName)
+          var headRepoLink = link([headRepo.id], headRepoName)
+          var headBranchLink = link([headRepo.id, 'tree', pr.headBranch])
+          var baseBranchLink = link([repo.id, 'tree', pr.baseBranch])
+          cb(null, '<section class="collapse">' +
+            (pr.open
+              ? '<strong class="issue-status open">Open</strong>'
+              : '<strong class="issue-status closed">Closed</strong>') +
+            authorLink + ' wants to merge commits into ' +
+            '<code>' + baseBranchLink + '</code> from ' +
+            (sameRepo ? '<code>' + headBranchLink + '</code>' :
+              '<code class="bgslash">' +
+                headRepoAuthorLink + ' / ' +
+                headRepoLink + ' / ' +
+                headBranchLink + '</code>') +
+            '</section>')
+        })
+      }),
+      pull.once(
+        nav([
+          [[pr.id], 'Discussion', 'activity'],
+          [[pr.id, 'commits'], 'Commits', 'commits'],
+          [[pr.id, 'files'], 'Files', 'files']
+        ], page)),
+      readNext(function (cb) {
+        if (page == 'commits') cb(null,
+          renderPullReqCommits(pr, repo, headRepo))
+        else if (page == 'files') cb(null,
+          renderPullReqFiles(pr, repo, headRepo))
+        else cb(null,
+          renderPullReqActivity(pr, repo, headRepo, authorLink, postId))
+      })
+    ]))
+  }
+
+  function renderPullReqCommits(pr, baseRepo, headRepo) {
+    return cat([
+      pull.once('<section>'),
+      renderCommitLog(baseRepo, pr.baseBranch, headRepo, pr.headBranch),
+      pull.once('</section>')
+    ])
+  }
+
+  function renderPullReqFiles(pr, baseRepo, headRepo) {
+    return cat([
+      pull.once('<section>'),
+      renderDiffStat([baseRepo, headRepo], [pr.baseBranch, pr.headBranch]),
+      pull.once('</section>')
+    ])
+  }
+
+  function renderPullReqActivity(pr, repo, headRepo, authorLink, postId) {
+    var msgTimeLink = link([pr.id], new Date(pr.created_at).toLocaleString())
+    var newestMsg = {key: pr.id, value: {timestamp: pr.created_at}}
+    var isAuthor = (myId == pr.author) || (myId == repo.feed)
+    return cat([
+      readOnce(function (cb) {
+        cb(null,
+          '<section class="collapse">' +
+            authorLink + ' &middot; ' + msgTimeLink +
+            markdown(pr.text, repo) + '</section>')
+      }),
+      // render posts, edits, and updates
+      pull(
+        many([
+          pull(
+            ssb.links({
+              dest: pr.id,
+              values: true
+            }),
+            pull.unique('key')
+          ),
+          readNext(function (cb) {
+            cb(null, pull(
+              ssb.links({
+                dest: headRepo.id,
+                source: headRepo.feed,
+                rel: 'repo',
+                values: true,
+                reverse: true
+              }),
+              pull.take(function (link) {
+                return link.value.timestamp > pr.created_at
+              }),
+              pull.filter(function (link) {
+                return link.value.content.type == 'git-update'
+                  && ('refs/heads/' + pr.headBranch) in link.value.content.refs
+              })
+            ))
+          })
+        ]),
+        addAuthorName(about),
+        pull.through(function (msg) {
+          if (msg.value.timestamp > newestMsg.value.timestamp)
+            newestMsg = msg
+        }),
+        sortMsgs(),
+        pull.map(function (item) {
+          if (item.value.content.type == 'git-update')
+            return renderBranchUpdate(pr, item)
+          return renderIssueActivityMsg(repo, pr,
+            'pull request', postId, item)
+        })
+      ),
+      isPublic ? pull.empty() : readOnce(function (cb) {
+        cb(null, renderIssueCommentForm(pr, repo, newestMsg.key, isAuthor,
+          'pull request'))
+      })
+    ])
+  }
+
+  function renderBranchUpdate(pr, msg) {
+    var authorLink = link([msg.value.author], msg.authorName)
+    var msgLink = link([msg.key],
+      new Date(msg.value.timestamp).toLocaleString())
+    var rev = msg.value.content.refs['refs/heads/' + pr.headBranch]
+    if (!rev)
+      return '<section class="collapse">' +
+        authorLink + ' deleted the <code>' + pr.headBranch + '</code> branch' +
+        ' &middot; ' + msgLink +
+        '</section>'
+
+    var revLink = link([pr.headRepo, 'commit', rev], rev.substr(0, 8))
+    return '<section class="collapse">' +
+      authorLink + ' updated the branch to <code>' + revLink + '</code>' +
+      ' &middot; ' + msgLink +
+      '</section>'
+  }
+
+  /* Compare changes */
+
+  function serveRepoCompare(req, repo) {
+    var query = req._u.query
+    var base
+    var count = 0
+
+    return renderRepoPage(repo, 'pulls', null, cat([
+      pull.once('<h3>Compare changes</h3>' +
+        '<form action="' + encodeLink(repo.id) + '/comparing" method="get">' +
+        '<section>'),
+      pull.once('Base branch: '),
+      readNext(function (cb) {
+        if (query.base) gotBase(null, query.base)
+        else repo.getSymRef('HEAD', true, gotBase)
+        function gotBase(err, ref) {
+          if (err) return cb(err)
+          cb(null, branchMenu(repo, 'base', base = ref || 'HEAD'))
+        }
+      }),
+      pull.once('<br/>Comparison repo/branch:'),
+      pull(
+        getForks(repo, true),
+        pull.asyncMap(function (msg, cb) {
+          getRepo(msg.key, function (err, repo) {
+            if (err) return cb(err)
+            cb(null, {
+              msg: msg,
+              repo: repo
+            })
+          })
+        }),
+        pull.map(renderFork),
+        pull.flatten()
+      ),
+      pull.once('</section>'),
+      readOnce(function (cb) {
+        cb(null, count == 0 ?  'No branches to compare!' :
+          '<button type="submit" class="btn">Compare</button>')
+      }),
+      pull.once('</form>')
+    ]))
+
+    function renderFork(fork) {
+      return pull(
+        fork.repo.refs(),
+        pull.map(function (ref) {
+          var m = /^refs\/([^\/]*)\/(.*)$/.exec(ref.name) || [,ref.name]
+          return {
+            type: m[1],
+            name: m[2],
+            value: ref.value
+          }
+        }),
+        pull.filter(function (ref) {
+          return ref.type == 'heads'
+            && !(ref.name == base && fork.msg.key == repo.id)
+        }),
+        pull.map(function (ref) {
+          var branchLink = link([fork.msg.key, 'tree', ref.name], ref.name)
+          var authorLink = link([fork.msg.value.author], fork.msg.authorName)
+          var repoLink = link([fork.msg.key], fork.msg.repoName)
+          var value = fork.msg.key + ':' + ref.name
+          count++
+          return '<div class="bgslash">' +
+            '<input type="radio" name="head"' +
+            ' value="' + escapeHTML(value) + '"' +
+            (query.head == value ? ' checked="checked"' : '') + '> ' +
+            authorLink + ' / ' + repoLink + ' / ' + branchLink + '</div>'
+        })
+      )
+    }
+  }
+
+  function serveRepoComparing(req, repo) {
+    var query = req._u.query
+    var baseBranch = query.base
+    var s = (query.head || '').split(':')
+
+    if (!s || !baseBranch)
+      return serveRedirect(encodeLink([repo.id, 'compare']))
+
+    var headRepoId = s[0]
+    var headBranch = s[1]
+    var baseLink = link([repo.id, 'tree', baseBranch])
+    var headBranchLink = link([headRepoId, 'tree', headBranch])
+    var backHref = encodeLink([repo.id, 'compare']) + req._u.search
+
+    return renderRepoPage(repo, 'pulls', null, cat([
+      pull.once('<h3>' +
+      (query.expand ? 'Open a pull request' : 'Comparing changes') +
+      '</h3>'),
+      readNext(function (cb) {
+        getRepo(headRepoId, function (err, headRepo) {
+          if (err) return cb(err)
+          getRepoFullName(about, headRepo.feed, headRepo.id,
+            function (err, repoName, authorName) {
+              if (err) return cb(err)
+              cb(null, renderRepoInfo(Repo(headRepo), repoName, authorName))
+            }
+          )
+        })
+      })
+    ]))
+
+    function renderRepoInfo(headRepo, headRepoName, headRepoAuthorName) {
+      var authorLink = link([headRepo.feed], headRepoAuthorName)
+      var repoLink = link([headRepoId], headRepoName)
+      return cat([
+        pull.once('<section>' +
+          'Base: ' + baseLink + '<br/>' +
+          'Head: <span class="bgslash">' + authorLink + ' / ' + repoLink +
+          ' / ' + headBranchLink + '</span>' +
+          '</section>' +
+          (query.expand ? '<section><form method="post" action="">' +
+            hiddenInputs({
+              action: 'new-pull',
+              branch: baseBranch,
+              head_repo: headRepoId,
+              head_branch: headBranch
+            }) +
+            '<input class="wide-input" name="title"' +
+            ' placeholder="Title" size="77"/>' +
+            renderPostForm(repo, 'Description', 8) +
+            '<button type="submit" class="btn open">Create</button>' +
+            '</form></section>'
+          : '<section><form method="get" action="">' +
+            hiddenInputs({
+              base: baseBranch,
+              head: query.head
+            }) +
+            '<button class="btn open" type="submit" name="expand" value="1">' +
+              '<i>⎇</i> Create pull request</button> ' +
+            '<a href="' + backHref + '">Back</a>' +
+            '</form></section>') +
+          '<div id="commits"></div>' +
+          '<div class="tab-links">' +
+            '<a href="#" id="files-link">Files changed</a> ' +
+            '<a href="#commits" id="commits-link">Commits</a>' +
+          '</div>' +
+          '<section id="files-tab">'),
+        renderDiffStat([repo, headRepo], [baseBranch, headBranch]),
+        pull.once('</section>' +
+          '<section id="commits-tab">'),
+        renderCommitLog(repo, baseBranch, headRepo, headBranch),
+        pull.once('</section>')
+      ])
+    }
+  }
+
+  function renderCommitLog(baseRepo, baseBranch, headRepo, headBranch) {
+    return cat([
+      pull.once('<table class="compare-commits">'),
+      readNext(function (cb) {
+        baseRepo.resolveRef(baseBranch, function (err, baseBranchRev) {
+          if (err) return cb(err)
+          var currentDay
+          return cb(null, pull(
+            headRepo.readLog(headBranch),
+            pull.take(function (rev) { return rev != baseBranchRev }),
+            // pull.take(2),
+            pullReverse(),
+            paramap(headRepo.getCommitParsed.bind(headRepo), 8),
+            pull.map(function (commit) {
+              var commitPath = [baseRepo.id, 'commit', commit.id]
+              var commitIdShort = '<tt>' + commit.id.substr(0, 8) + '</tt>'
+              var day = Math.floor(commit.author.date / 86400000)
+              var dateRow = day == currentDay ? '' :
+                '<tr><th colspan=3 class="date-info">' +
+                commit.author.date.toLocaleDateString() +
+                '</th><tr>'
+              currentDay = day
+              return dateRow + '<tr>' +
+                '<td>' + escapeHTML(commit.author.name) + '</td>' +
+                '<td>' + link(commitPath, commit.title) + '</td>' +
+                '<td>' + link(commitPath, commitIdShort, true) + '</td>' +
+                '</tr>'
+            })
+          ))
+        })
+      }),
+      pull.once('</table>')
+    ])
+  }
 }

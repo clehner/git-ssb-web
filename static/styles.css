@@ -97,8 +97,11 @@ i {
 }
 
 .repo-title h2 {
-  color: #888;
   height: 1.2em;
+}
+
+.bgslash {
+  color: #888;
 }
 
 .petname h2,
@@ -168,6 +171,7 @@ label {
   border-radius: .5ex;
   float: right;
   margin: 0;
+  max-width: 50%;
 }
 .clone-url:hover {
   background-color: #f6f6f6;
@@ -279,7 +283,8 @@ h3 .user-id {
   text-overflow: ellipsis;
 }
 
-.tab-links label {
+.tab-links label,
+.tab-links a {
   padding: 1ex;
   color: #333;
 }
@@ -368,3 +373,33 @@ h3 .user-id {
 
 .diff-old { background-color: #ffe2dd; }
 .diff-new { background-color: #d1ffd6; }
+
+/* Pull requests */
+
+#commits:not(:target) ~ #commits-tab,
+#commits:target ~ #files-tab {
+  display: none;
+}
+
+#commits:not(:target) + .tab-links #files-link,
+#commits:target + .tab-links #commits-link {
+  font-weight: bold;
+}
+
+.compare-commits {
+  width: 100%;
+}
+
+.compare-commits .date-info {
+  font-weight: normal;
+  text-align: left;
+  color: #666;
+}
+
+.compare-commits td:first-child {
+  padding-left: 2ex;
+}
+
+.pr-tab-links {
+  margin: .5em 0 0.25em;
+}
