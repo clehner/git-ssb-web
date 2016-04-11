@@ -2166,7 +2166,27 @@ module.exports = function (opts, cb) {
             'pull request', postId, item)
         })
       ),
-      isPublic ? pull.empty() : readOnce(function (cb) {
+      !isPublic && isAuthor && pull.once(
+        '<section class="merge-instructions">' +
+        '<input type="checkbox" class="toggle" id="merge-instructions"/>' +
+        '<h4><label for="merge-instructions" class="toggle-link"><a>' +
+        'Merge via command line…' +
+        '</a></label></h4>' +
+        '<div class="contents">' +
+        '<p>Check out the branch and test the changes:</p>' +
+        '<pre>' +
+        'git fetch ssb://' + escapeHTML(pr.headRepo) + ' ' +
+          escapeHTML(pr.headBranch) + '\n' +
+        'git checkout -b ' + escapeHTML(pr.headBranch) + ' FETCH_HEAD' +
+        '</pre>' +
+        '<p>Merge the changes and push to update the base branch:</p>' +
+        '<pre>' +
+        'git checkout ' + escapeHTML(pr.baseBranch) + '\n' +
+        'git merge ' + escapeHTML(pr.headBranch) + '\n' +
+        'git push ssb ' + escapeHTML(pr.baseBranch) +
+        '</pre>' +
+        '</div></section>'),
+      !isPublic && readOnce(function (cb) {
         cb(null, renderIssueCommentForm(pr, repo, newestMsg.key, isAuthor,
           'pull request'))
       })
@@ -2351,7 +2371,6 @@ module.exports = function (opts, cb) {
           return cb(null, pull(
             headRepo.readLog(headBranch),
             pull.take(function (rev) { return rev != baseBranchRev }),
-            // pull.take(2),
             pullReverse(),
             paramap(headRepo.getCommitParsed.bind(headRepo), 8),
             pull.map(function (commit) {

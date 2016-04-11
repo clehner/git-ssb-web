@@ -148,6 +148,7 @@ label {
 }
 
 .name-checkbox,
+.toggle,
 .tab-radio {
   position: absolute;
   opacity: 0;
@@ -402,4 +403,19 @@ h3 .user-id {
 
 .pr-tab-links {
   margin: .5em 0 0.25em;
+}
+
+.merge-instructions {
+  margin-top: .5em;
+}
+
+#merge-instructions:not(:checked) + h4 .toggle-open,
+#merge-instructions:checked + h4 .toggle-closed,
+#merge-instructions:not(:checked) ~ .contents {
+  display: none;
+}
+
+.toggle-link {
+  color: #006eff;
+  font-weight: normal;
 }
