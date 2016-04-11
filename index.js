@@ -2127,13 +2127,10 @@ module.exports = function (opts, cb) {
       // render posts, edits, and updates
       pull(
         many([
-          pull(
-            ssb.links({
-              dest: pr.id,
-              values: true
-            }),
-            pull.unique('key')
-          ),
+          ssb.links({
+            dest: pr.id,
+            values: true
+          }),
           readNext(function (cb) {
             cb(null, pull(
               ssb.links({
@@ -2154,6 +2151,7 @@ module.exports = function (opts, cb) {
           })
         ]),
         addAuthorName(about),
+        pull.unique('key'),
         pull.through(function (msg) {
           if (msg.value.timestamp > newestMsg.value.timestamp)
             newestMsg = msg
