@@ -1266,16 +1266,15 @@ module.exports = function (opts, cb) {
       pull(
         repo.readLog(query.start || branch),
         pull.take(20),
+        paramap(repo.getCommitParsed.bind(repo), 8),
         paginate(
           !query.start ? '' : function (first, cb) {
             cb(null, '&hellip;')
           },
-          pull(
-            paramap(repo.getCommitParsed.bind(repo), 8),
-            pull.map(renderCommit.bind(this, repo))
-          ),
-          function (last, cb) {
-            cb(null, '<a href="?start=' + last + '">Older</a>')
+          pull.map(renderCommit.bind(this, repo)),
+          function (commit, cb) {
+            cb(null, commit.parents && commit.parents[0] ?
+              '<a href="?start=' + commit.id + '">Older</a>' : '')
           }
         )
       )
