@@ -36,6 +36,20 @@ blockRenderer.urltransform = function (url) {
   return url
 }
 
+blockRenderer.image = function (href, title, text) {
+  href = href.replace(/^&amp;/, '&')
+  var url
+  if (ref.isBlobId(href))
+    url = encodeLink(href)
+  else if (this.options.repo && this.options.rev && this.options.path)
+    url = path.join('/', encodeURIComponent(this.options.repo.id),
+      'raw', this.options.rev, this.options.path.join('/'), href)
+  else
+    return text
+  return '<img src="' + escapeHTML(url) + '" alt="' + text + '"' +
+    (title ? ' title="' + title + '"' : '') + '/>'
+}
+
 function getExtension(filename) {
   return (/\.([^.]+)$/.exec(filename) || [,filename])[1]
 }
@@ -71,10 +85,15 @@ mdRules.mention =
   /^(\s)?([@%&][A-Za-z0-9\._\-+=\/]*[A-Za-z0-9_\-+=\/]|[0-9a-f]{40})/
 mdRules.text = /^[\s\S]+?(?=[\\<!\[_*`]| {2,}\n| [@%&]|[0-9a-f]{40}|$)/
 
-function markdown(text, repo, cb) {
+function markdown(text, options, cb) {
   if (!text) return ''
   if (typeof text != 'string') text = String(text)
-  return marked(text, {repo: repo}, cb)
+  if (!options) options = {}
+  else if (options.id) options = {repo: options}
+  if (!options.rev) options.rev = 'HEAD'
+  if (!options.path) options.path = []
+
+  return marked(text, options, cb)
 }
 
 function parseAddr(str, def) {
@@ -750,14 +769,14 @@ module.exports = function (opts, cb) {
     )
   }
 
-  function renderObjectData(obj, filename, repo) {
+  function renderObjectData(obj, filename, repo, rev, path) {
     var ext = getExtension(filename)
     return readOnce(function (cb) {
       readObjectString(obj, function (err, buf) {
         buf = buf.toString('utf8')
         if (err) return cb(err)
         cb(null, (ext == 'md' || ext == 'markdown')
-          ? markdown(buf, repo)
+          ? markdown(buf, {repo: repo, rev: rev, path: path})
           : renderCodeTable(buf, ext))
       })
     })
@@ -1406,7 +1425,7 @@ module.exports = function (opts, cb) {
             cb(null, cat([
               pull.once('<section><h4><a name="readme">' +
                 escapeHTML(file.name) + '</a></h4><hr/>'),
-              renderObjectData(obj, file.name, repo),
+              renderObjectData(obj, file.name, repo, branch, path),
               pull.once('</section>')
             ]))
           })
@@ -1654,6 +1673,7 @@ module.exports = function (opts, cb) {
         var pathLinks = path.length === 0 ? '' :
           ': ' + linkPath([repo.id, 'tree'], [rev].concat(path))
         var rawFilePath = [repo.id, 'raw', rev].concat(path)
+        var dirPath = path.slice(0, path.length-1)
         var filename = path[path.length-1]
         var extension = getExtension(filename)
         cb(null, renderRepoPage(repo, 'code', rev, cat([
@@ -1671,7 +1691,7 @@ module.exports = function (opts, cb) {
           extension in imgMimes
           ? pull.once('<img src="' + encodeLink(rawFilePath) +
             '" alt="' + escapeHTML(filename) + '" />')
-          : renderObjectData(object, filename, repo),
+          : renderObjectData(object, filename, repo, rev, dirPath),
           pull.once('</section>')
         ])))
       })
