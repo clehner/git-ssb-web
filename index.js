@@ -1117,7 +1117,7 @@ module.exports = function (opts, cb) {
           pull.once(
             '<div class="repo-title">' +
             '<form class="right-bar" action="" method="post">' +
-              '<button class="btn" ' +
+              '<button class="btn" name="vote" ' +
               (isPublic ? 'disabled="disabled"' : ' type="submit"') + '>' +
                 '<i>✌</i> ' + (!isPublic && upvoted ? 'Undig' : 'Dig') +
                 '</button>' +
