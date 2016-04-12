@@ -1464,7 +1464,7 @@ module.exports = function (opts, cb) {
       pull(
         Repo.diffTrees(repos, treeIds, true),
         pull.map(function (item) {
-          var filename = item.filename = escapeHTML(item.path.join('/'))
+          var filename = escapeHTML(item.filename = item.path.join('/'))
           var oldId = item.id && item.id[0]
           var newId = item.id && item.id[lastI]
           var oldMode = item.mode && item.mode[0]
@@ -1478,9 +1478,18 @@ module.exports = function (opts, cb) {
             'changed'
           if (item.id)
             changedFiles.push(item)
+            var commitId = item.id[lastI] ? id : treeIds.filter(Boolean)[0]
+          var blobsPath = treeIds[1]
+            ? [repos[1].id, 'blob', treeIds[1]]
+            : [repos[0].id, 'blob', treeIds[0]]
+          var rawsPath = treeIds[1]
+            ? [repos[1].id, 'raw', treeIds[1]]
+            : [repos[0].id, 'raw', treeIds[0]]
+          item.blobPath = blobsPath.concat(item.path)
+          item.rawPath = rawsPath.concat(item.path)
           var fileHref = item.id ?
             '#' + encodeURIComponent(item.path.join('/')) :
-            encodeLink([repos[0].id, 'blob', id].concat(item.path))
+            encodeLink(item.blobPath)
           return ['<a href="' + fileHref + '">' + filename + '</a>', action]
         }),
         table()
@@ -1488,22 +1497,32 @@ module.exports = function (opts, cb) {
       pull(
         pull.values(changedFiles),
         paramap(function (item, cb) {
+          var extension = getExtension(item.filename)
+          if (extension in imgMimes) {
+            var filename = escapeHTML(item.filename)
+            return cb(null,
+              '<pre><table class="code">' +
+              '<tr><th id="' + escapeHTML(item.filename) + '">' +
+                filename + '</th></tr>' +
+              '<tr><td><img src="' + encodeLink(item.rawPath) + '"' +
+              ' alt="' + filename + '"/></td></tr>' +
+              '</table></pre>')
+          }
           var done = multicb({ pluck: 1, spread: true })
           getRepoObjectString(repos[0], item.id[0], done())
           getRepoObjectString(repos[1], item.id[lastI], done())
           done(function (err, strOld, strNew) {
             if (err) return cb(err)
-            var commitId = item.id[lastI] ? id : treeIds.filter(Boolean)[0]
             cb(null, htmlLineDiff(item.filename, item.filename,
               strOld, strNew,
-              encodeLink([repos[0].id, 'blob', commitId].concat(item.path))))
+              encodeLink(item.blobPath)))
           })
         }, 4)
       )
     ])
   }
 
-  function htmlLineDiff(filename, anchor, oldStr, newStr, blobHref, rawHref) {
+  function htmlLineDiff(filename, anchor, oldStr, newStr, blobHref) {
     var diff = JsDiff.structuredPatch('', '', oldStr, newStr)
     var groups = diff.hunks.map(function (hunk) {
       var oldLine = hunk.oldStart
@@ -1529,7 +1548,7 @@ module.exports = function (opts, cb) {
       }))
     })
     return '<pre><table class="code">' +
-      '<tr><th colspan=3 id="' + anchor + '">' + filename +
+      '<tr><th colspan=3 id="' + escapeHTML(anchor) + '">' + filename +
       '<span class="right-bar">' +
         '<a href="' + blobHref + '">View</a> ' +
       '</span></th></tr>' +

@@ -375,6 +375,10 @@ h3 .user-id {
 .diff-old { background-color: #ffe2dd; }
 .diff-new { background-color: #d1ffd6; }
 
+.code img {
+  max-width: 100%;
+}
+
 /* Pull requests */
 
 #commits:not(:target) ~ #commits-tab,
