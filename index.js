@@ -536,21 +536,18 @@ module.exports = function (opts, cb) {
           if (!data) return cb(null, serveError(new Error('No data'), 400))
 
           switch (data.action) {
-            case 'repo':
-              if (data.fork != null) {
-                var repoId = data.id
-                if (!repoId) return cb(null,
-                  serveError(new Error('Missing repo id'), 400))
-                ssbGit.createRepo(ssb, {upstream: repoId},
-                  function (err, repo) {
-                    if (err) return cb(null, serveError(err))
-                    cb(null, serveRedirect(encodeLink(repo.id)))
-                  })
-              } else if (data.vote != null) {
-                // fallthrough
-              } else {
-                return cb(null, serveError(new Error('Unknown action'), 400))
-              }
+            case 'fork-prompt':
+              return cb(null, serveRedirect(encodeLink([data.id, 'fork'])))
+
+            case 'fork':
+              var repoId = data.id
+              if (!repoId) return cb(null,
+                serveError(new Error('Missing repo id'), 400))
+              return ssbGit.createRepo(ssb, {upstream: repoId},
+                function (err, repo) {
+                  if (err) return cb(null, serveError(err))
+                  cb(null, serveRedirect(encodeLink(repo.id)))
+                })
 
             case 'vote':
               var voteValue = +data.value || 0
@@ -1128,6 +1125,8 @@ module.exports = function (opts, cb) {
         return serveRepoRaw(repo, branch, filePath)
       case 'digs':
         return serveRepoDigs(repo)
+      case 'fork':
+        return serveRepoForkPrompt(repo)
       case 'forks':
         return serveRepoForks(repo)
       case 'issues':
@@ -1186,18 +1185,17 @@ module.exports = function (opts, cb) {
           pull.once(
             '<div class="repo-title">' +
             '<form class="right-bar" action="" method="post">' +
-              '<button class="btn" name="vote" ' +
+              '<button class="btn" name="action" value="vote" ' +
               (isPublic ? 'disabled="disabled"' : ' type="submit"') + '>' +
                 '<i>✌</i> ' + (!isPublic && upvoted ? 'Undig' : 'Dig') +
                 '</button>' +
               (isPublic ? '' : '<input type="hidden" name="value" value="' +
                   (upvoted ? '0' : '1') + '">' +
-                '<input type="hidden" name="action" value="repo">' +
                 '<input type="hidden" name="id" value="' +
                   escapeHTML(repo.id) + '">') + ' ' +
               '<strong>' + link(digsPath, votes.upvotes) + '</strong> ' +
-              (isPublic ? '' :
-                '<button class="btn" type="submit" name="fork">' +
+              (isPublic ? '' : '<button class="btn" type="submit" ' +
+                  ' name="action" value="fork-prompt">' +
                 '<i>⑂</i> Fork' +
                 '</button>') + ' ' +
               link([repo.id, 'forks'], '+', false, ' title="Forks"') +
@@ -1928,6 +1926,19 @@ module.exports = function (opts, cb) {
         cb(null, hasForks ? '' : 'No forks')
       })
     ]))
+  }
+
+  function serveRepoForkPrompt(repo) {
+    return renderRepoPage(repo, null, null, pull.once(
+      '<form action="" method="post" onreset="history.back()">' +
+      '<h3>Fork this repo?</h3>' +
+      '<p>' + hiddenInputs({ id: repo.id }) +
+      '<button class="btn open" type="submit" name="action" value="fork">' +
+        'Fork' +
+      '</button>' +
+      ' <button class="btn" type="reset">Cancel</button>' +
+      '</p></form>'
+    ))
   }
 
   /* Issues */
