@@ -991,6 +991,7 @@ module.exports = function (opts, cb) {
             // fallthrough
           case 'post':
             if (ref.isMsgId(c.issue) && ref.isMsgId(c.repo)) {
+              // comment on an issue
               var done = multicb({ pluck: 1, spread: true })
               getRepo(c.repo, done())
               pullReqs.get(c.issue, done())
@@ -1002,6 +1003,31 @@ module.exports = function (opts, cb) {
                 var serve = issue.msg.value.content.type == 'pull-request' ?
                   serveRepoPullReq : serveRepoIssue
                 cb(null, serve(req, Repo(repo), issue, path, id))
+              })
+            } else if (ref.isMsgId(c.root)) {
+              // comment on issue from patchwork?
+              return getMsg(c.root, function (err, root) {
+                if (err) return cb(null, serveError(err))
+                var repoId = root.content.repo || root.content.project
+                if (!ref.isMsgId(repoId))
+                  return cb(null, serveGenericMessage(req, id, msg, path))
+                getRepo(repoId, function (err, repo) {
+                  if (err) return cb(null, serveError(err))
+                  switch (root.content && root.content.type) {
+                    case 'issue':
+                      return issues.get(c.root, function (err, issue) {
+                        if (err) return cb(null, serveError(err))
+                        return cb(null,
+                          serveRepoIssue(req, Repo(repo), issue, path, id))
+                      })
+                    case 'pull-request':
+                      pullReqs.get(c.root, function (err, pr) {
+                        if (err) return cb(null, serveError(err))
+                        return cb(null,
+                          serveRepoPullReq(req, Repo(repo), pr, path, id))
+                      })
+                  }
+                })
               })
             }
             // fallthrough
