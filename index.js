@@ -1591,11 +1591,10 @@ module.exports = function (opts, cb) {
             'changed'
           if (item.id)
             changedFiles.push(item)
-            var commitId = item.id[lastI] ? id : treeIds.filter(Boolean)[0]
-          var blobsPath = treeIds[1]
+          var blobsPath = item.id[1]
             ? [repos[1].id, 'blob', treeIds[1]]
             : [repos[0].id, 'blob', treeIds[0]]
-          var rawsPath = treeIds[1]
+          var rawsPath = item.id[1]
             ? [repos[1].id, 'raw', treeIds[1]]
             : [repos[0].id, 'raw', treeIds[0]]
           item.blobPath = blobsPath.concat(item.path)
@@ -2182,16 +2181,17 @@ module.exports = function (opts, cb) {
         '<code>' + pr.id + '</code>'),
       readOnce(function (cb) {
         var done = multicb({ pluck: 1, spread: true })
+        var gotHeadRepo = done()
         about.getName(pr.author, done())
         var sameRepo = (pr.headRepo == pr.baseRepo)
         getRepo(pr.headRepo, function (err, headRepo) {
           if (err) return cb(err)
-          done()(null, headRepo)
           getRepoName(about, headRepo.feed, headRepo.id, done())
           about.getName(headRepo.feed, done())
+          gotHeadRepo(null, Repo(headRepo))
         })
 
-        done(function (err, issueAuthorName, _headRepo,
+        done(function (err, _headRepo, issueAuthorName,
             headRepoName, headRepoAuthorName) {
           if (err) return cb(err)
           headRepo = _headRepo
@@ -2507,7 +2507,7 @@ module.exports = function (opts, cb) {
             pullReverse(),
             paramap(headRepo.getCommitParsed.bind(headRepo), 8),
             pull.map(function (commit) {
-              var commitPath = [baseRepo.id, 'commit', commit.id]
+              var commitPath = [headRepo.id, 'commit', commit.id]
               var commitIdShort = '<tt>' + commit.id.substr(0, 8) + '</tt>'
               var day = Math.floor(commit.author.date / 86400000)
               var dateRow = day == currentDay ? '' :
