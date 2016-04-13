@@ -1949,9 +1949,10 @@ module.exports = function (opts, cb) {
     return renderRepoPage(repo, 'issues', null, cat([
       pull.once(
         (isPublic ? '' :
-          '<div class="right-bar">' + link([repo.id, 'issues', 'new'],
-            '<button class="btn">&plus; New Issue</button>', true) +
-          '</div>') +
+          '<form class="right-bar" method="get"' +
+            ' action="' + encodeLink([repo.id, 'issues', 'new']) + '">' +
+            '<button class="btn">&plus; New Issue</button>' +
+          '</form>') +
         '<h3>Issues</h3>' +
         nav([
           ['?state=open', 'Open', 'open'],
@@ -1992,9 +1993,10 @@ module.exports = function (opts, cb) {
     return renderRepoPage(repo, 'pulls', null, cat([
       pull.once(
         (isPublic ? '' :
-          '<div class="right-bar">' + link([repo.id, 'compare'],
-            '<button class="btn">&plus; New Pull Request</button>', true) +
-          '</div>') +
+          '<form class="right-bar" method="get"' +
+            ' action="' + encodeLink([repo.id, 'compare']) + '">' +
+            '<button class="btn">&plus; New Pull Request</button>' +
+          '</form>') +
         '<h3>Pull Requests</h3>' +
         nav([
           ['?', 'Open', 'open'],
