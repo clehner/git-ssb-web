@@ -2007,9 +2007,10 @@ module.exports = function (opts, cb) {
 
   function renderIssueActivityMsg(repo, issue, type, postId, msg) {
     var authorLink = link([msg.value.author], msg.authorName)
-    var msgTimeLink = link([msg.key],
-      new Date(msg.value.timestamp).toLocaleString(), false,
-      'name="' + escapeHTML(msg.key) + '"')
+    var msgHref = encodeLink(msg.key) + '#' + encodeURIComponent(msg.key)
+    var msgTimeLink = '<a href="' + msgHref + '"' +
+      ' name="' + escapeHTML(msg.key) + '">' +
+      escapeHTML(new Date(msg.value.timestamp).toLocaleString()) + '</a>'
     var c = msg.value.content
     switch (c.type) {
       case 'post':
