@@ -38,7 +38,7 @@ header h1 {
   font-size: 1.5em;
 }
 
-header h1 a {
+header h1 a:link {
   color: #666;
 }
 
