@@ -325,6 +325,12 @@ h3 .user-id {
   margin: -.25ex -.5ex;
 }
 
+.item-id {
+  color: grey;
+  line-height: 2;
+  font-size: 10pt;
+}
+
 /* code and diffs */
 
 .code {
