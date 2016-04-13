@@ -814,7 +814,7 @@ module.exports = function (opts, cb) {
       pull.filter(function (msg) {
         return msg.value.content.type in msgTypes
       }),
-      filter,
+      typeof filter == 'function' ? filter(opts) : filter,
       pull.take(20),
       addAuthorName(about),
       query.forwards && pullReverse(),
@@ -893,6 +893,12 @@ module.exports = function (opts, cb) {
             authorLink + ' opened ' + c.type + ' ' + issueLink +
             ' on ' + repoLink + '</section>')
         })
+      case 'about':
+        return cb(null, '<section class="collapse">' + msgLink + '<br>' +
+          authorLink + ' named ' + '<tt>' + escapeHTML(c.about) + '</tt> ' +
+          link([c.about], c.name) + '</section>')
+      default:
+        return cb(null, json(msg))
     }
   }
 
@@ -1267,13 +1273,40 @@ module.exports = function (opts, cb) {
 
     var search = new RegExp(q, 'i')
     return serveTemplate('git ssb search', 200, req)(
-      renderFeed(req, null, pull.filter(function (msg) {
-        var c = msg.value.content
-        return (
-          search.test(msg.key) ||
-          c.text && search.test(c.text) ||
-          c.title && search.test(c.title))
-      }))
+      renderFeed(req, null, function (opts) {
+        opts.type == 'about'
+        return function (read) {
+          return pull(
+            many([
+              getRepoNames(opts),
+              read
+            ]),
+            pull.filter(function (msg) {
+              var c = msg.value.content
+              return (
+                search.test(msg.key) ||
+                c.text && search.test(c.text) ||
+                c.name && search.test(c.name) ||
+                c.title && search.test(c.title))
+            })
+          )
+        }
+      })
+    )
+  }
+
+  function getRepoNames(opts) {
+    return pull(
+      ssb.messagesByType({
+        type: 'about',
+        reverse: opts.reverse,
+        lt: opts.lt,
+        gt: opts.gt,
+      }),
+      pull.filter(function (msg) {
+        return '%' == String(msg.value.content.about)[0]
+          && msg.value.content.name
+      })
     )
   }
 
