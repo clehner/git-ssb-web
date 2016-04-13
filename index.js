@@ -1545,8 +1545,8 @@ module.exports = function (opts, cb) {
             '<div class="right-bar">' +
               link(treePath, 'Browse Files') +
             '</div>' +
-            '<h4>' + escapeHTML(commit.title) + '</h4>' +
-            (commit.body ? pre(commit.body) : '') +
+            '<h4>' + linkify(escapeHTML(commit.title)) + '</h4>' +
+            (commit.body ? linkify(pre(commit.body)) : '') +
             (commit.separateAuthor ? escapeHTML(commit.author.name) +
               ' authored on ' + commit.author.date.toLocaleString() + '<br>'
               : '') +
