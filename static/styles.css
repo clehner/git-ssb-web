@@ -48,6 +48,15 @@ header h1 sub {
   font-size: small;
 }
 
+header .search-bar {
+  float: right;
+  margin-top: .5em;
+  margin-left: 1ex;
+  max-width: 65%;
+  padding: .25em;
+  font-size: 10pt;
+}
+
 /* content */
 
 section {

@@ -636,6 +636,8 @@ module.exports = function (opts, cb) {
 
     if (dir == '')
       return serveIndex(req)
+    else if (dir == 'search')
+      return serveSearch(req)
     else if (ref.isBlobId(dir))
       return serveBlob(req, dir)
     else if (ref.isMsgId(dir))
@@ -736,8 +738,9 @@ module.exports = function (opts, cb) {
     }
   }
 
-  function serveTemplate(title, code, read) {
-    if (read === undefined) return serveTemplate.bind(this, title, code)
+  function serveTemplate(title, code, req, read) {
+    if (read === undefined) return serveTemplate.bind(this, title, code, req)
+    var q = req && req._u.query.q && escapeHTML(req._u.query.q) || ''
     return cat([
       pull.values([
         [code || 200, {
@@ -749,11 +752,14 @@ module.exports = function (opts, cb) {
         '<link rel=stylesheet href="/highlight/github.css"/>',
         '</head>\n',
         '<body>',
-        '<header>',
+        '<header><form action="/search" method="get">' +
         '<h1><a href="/">git ssb' +
           (ssbAppname != 'ssb' ? ' <sub>' + ssbAppname + '</sub>' : '') +
-        '</a></h1>',
-        '</header>',
+        '</a> ' +
+        '<input class="search-bar" name="q" size="60"' +
+          ' placeholder="🔍" value="' + q + '" />' +
+        '</h1>',
+        '</form></header>',
         '<article>']),
       renderTry(read),
       pull.once('<hr/></article></body></html>')
@@ -795,7 +801,7 @@ module.exports = function (opts, cb) {
 
   /* Feed */
 
-  function renderFeed(req, feedId) {
+  function renderFeed(req, feedId, filter) {
     var query = req._u.query
     var opts = {
       reverse: !query.forwards,
@@ -808,6 +814,7 @@ module.exports = function (opts, cb) {
       pull.filter(function (msg) {
         return msg.value.content.type in msgTypes
       }),
+      filter,
       pull.take(20),
       addAuthorName(about),
       query.forwards && pullReverse(),
@@ -815,22 +822,30 @@ module.exports = function (opts, cb) {
         function (first, cb) {
           if (!query.lt && !query.gt) return cb(null, '')
           var gt = feedId ? first.value.sequence : first.value.timestamp + 1
-          var q = qs.stringify({
-            gt: gt,
-            forwards: 1
-          })
-          cb(null, '<a href="?' + q + '">Newer</a>')
+          query.gt = gt
+          query.forwards = 1
+          delete query.lt
+          cb(null, '<a href="?' + qs.stringify(query) + '">Newer</a>')
         },
         paramap(renderFeedItem, 8),
         function (last, cb) {
-          cb(null, '<a href="?' + qs.stringify({
-            lt: feedId ? last.value.sequence : last.value.timestamp - 1
-          }) + '">Older</a>')
+          query.lt = feedId ? last.value.sequence : last.value.timestamp - 1
+          delete query.gt
+          delete query.forwards
+          cb(null, '<a href="?' + qs.stringify(query) + '">Older</a>')
         },
         function (cb) {
-          cb(null, query.forwards ?
-            '<a href="?lt=' + (opts.gt + 1) + '">Older</a>' :
-            '<a href="?gt=' + (opts.lt - 1) + '&amp;forwards=1">Newer</a>')
+          if (query.forwards) {
+            delete query.gt
+            delete query.forwards
+            query.lt = opts.gt + 1
+          } else {
+            delete query.lt
+            query.gt = opts.lt - 1
+            query.forwards = 1
+          }
+          cb(null, '<a href="?' + qs.stringify(query) + '">' +
+            (query.forwards ? 'Older' : 'Newer') + '</a>')
         }
       )
     )
@@ -1127,7 +1142,7 @@ module.exports = function (opts, cb) {
   }
 
   function serveRepoNotFound(id, err) {
-    return serveTemplate('Repo not found', 404, pull.values([
+    return serveTemplate('Repo not found', 404)(pull.values([
       '<h2>Repo not found</h2>',
       '<p>Repo ' + id + ' was not found</p>',
       '<pre>' + escapeHTML(err.stack) + '</pre>',
@@ -1239,6 +1254,27 @@ module.exports = function (opts, cb) {
       pull.once('</section>'),
       renderRepoReadme(repo, rev, path)
     ]))
+  }
+
+  /* Search */
+
+  function serveSearch(req) {
+    var q = String(req._u.query.q || '')
+    if (!q) return serveIndex(req)
+    var qId = q.replace(/^ssb:\/*/, '')
+    if (ref.type(qId))
+      return serveRedirect(encodeURI(qId))
+
+    var search = new RegExp(q, 'i')
+    return serveTemplate('git ssb search', 200, req)(
+      renderFeed(req, null, pull.filter(function (msg) {
+        var c = msg.value.content
+        return (
+          search.test(msg.key) ||
+          c.text && search.test(c.text) ||
+          c.title && search.test(c.title))
+      }))
+    )
   }
 
   /* Repo activity */
@@ -1725,7 +1761,7 @@ module.exports = function (opts, cb) {
   }
 
   function serveBlobNotFound(repoId, err) {
-    return serveTemplate('Blob not found', 404, pull.values([
+    return serveTemplate('Blob not found', 404)(pull.values([
       '<h2>Blob not found</h2>',
       '<p>Blob in repo ' + link([repoId]) + ' was not found</p>',
       '<pre>' + escapeHTML(err.stack) + '</pre>'
