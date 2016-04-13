@@ -862,11 +862,14 @@ module.exports = function (opts, cb) {
         var done = multicb({ pluck: 1, spread: true })
         getRepoName(about, author, msg.key, done())
         if (c.upstream) {
-          getRepoName(about, author, c.upstream, done())
-          return done(function (err, repoName, upstreamName) {
-            cb(null, '<section class="collapse">' + msgLink + '<br>' +
-              authorLink + ' forked ' + link([c.upstream], upstreamName) +
-              ' to ' + link([msg.key], repoName) + '</section>')
+          return getMsg(c.upstream, function (err, upstreamMsg) {
+            if (err) return cb(null, serveError(err))
+            getRepoName(about, upstreamMsg.author, c.upstream, done())
+            done(function (err, repoName, upstreamName) {
+              cb(null, '<section class="collapse">' + msgLink + '<br>' +
+                authorLink + ' forked ' + link([c.upstream], upstreamName) +
+                ' to ' + link([msg.key], repoName) + '</section>')
+            })
           })
         } else {
           return done(function (err, repoName) {
