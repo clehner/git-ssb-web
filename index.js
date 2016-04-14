@@ -886,12 +886,16 @@ module.exports = function (opts, cb) {
       case 'issue':
       case 'pull-request':
         var issueLink = link([msg.key], c.title)
-        return getRepoName(about, author, c.project, function (err, repoName) {
-          if (err) return cb(err)
-          var repoLink = link([c.project], repoName)
-          cb(null, '<section class="collapse">' + msgLink + '<br>' +
-            authorLink + ' opened ' + c.type + ' ' + issueLink +
-            ' on ' + repoLink + '</section>')
+        return getMsg(c.project, function (err, projectMsg) {
+          if (err) return cb(null, serveRepoNotFound(req, c.repo, err))
+          getRepoName(about, projectMsg.author, c.project,
+            function (err, repoName) {
+              if (err) return cb(err)
+              var repoLink = link([c.project], repoName)
+              cb(null, '<section class="collapse">' + msgLink + '<br>' +
+                authorLink + ' opened ' + c.type + ' ' + issueLink +
+                ' on ' + repoLink + '</section>')
+            })
         })
       case 'about':
         return cb(null, '<section class="collapse">' + msgLink + '<br>' +
