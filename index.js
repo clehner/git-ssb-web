@@ -2315,7 +2315,7 @@ module.exports = function (opts, cb) {
             'pull request', postId, item)
         })
       ),
-      !isPublic && isAuthor && pull.once(
+      !isPublic && isAuthor && pr.open && pull.once(
         '<section class="merge-instructions">' +
         '<input type="checkbox" class="toggle" id="merge-instructions"/>' +
         '<h4><label for="merge-instructions" class="toggle-link"><a>' +
