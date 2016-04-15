@@ -1314,7 +1314,7 @@ module.exports = function (opts, cb) {
       pull.once('</section><section>'),
       renderRepoTree(req, repo, rev, path),
       pull.once('</section>'),
-      renderRepoReadme(repo, rev, path)
+      renderRepoReadme(req, repo, rev, path)
     ]))
   }
 
@@ -1577,7 +1577,7 @@ module.exports = function (opts, cb) {
 
   /* Repo readme */
 
-  function renderRepoReadme(repo, branch, path) {
+  function renderRepoReadme(req, repo, branch, path) {
     return readNext(function (cb) {
       pull(
         repo.readDir(branch, path),
