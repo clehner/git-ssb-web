@@ -1562,7 +1562,10 @@ module.exports = function (opts, cb) {
           var type = (file.mode === 040000) ? 'tree' :
             (file.mode === 0160000) ? 'commit' : 'blob'
           if (type == 'commit')
-            return ['<span title="git commit link">🖈</span>', '<span title="' + escapeHTML(file.id) + '">' + escapeHTML(file.name) + '</span>']
+            return [
+              '<span title="' + req._t('gitCommitLink') + '">🖈</span>',
+              '<span title="' + escapeHTML(file.id) + '">' +
+                escapeHTML(file.name) + '</span>']
           var filePath = [repo.id, type, rev].concat(path, file.name)
           return ['<i>' + (type == 'tree' ? '📁' : '📄') + '</i>',
             link(filePath, file.name)]

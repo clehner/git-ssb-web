@@ -63,6 +63,7 @@
   "Go": "Iri",
   "Latest": "Aktuala",
   "Files": "Dosieroj",
+  "gitCommitLink": "git enmeto ligilo",
   "NoReadme": "Sen 'readme'",
   "CommitRev": "Enmeto %{rev}",
   "BrowseFiles": "Foliumi dosierojn",

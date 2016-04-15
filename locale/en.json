@@ -63,6 +63,7 @@
   "Go": "Go",
   "Latest": "Latest",
   "Files": "Files",
+  "gitCommitLink": "git commit link",
   "NoReadme": "No readme",
   "CommitRev": "Commit %{rev}",
   "BrowseFiles": "Browse Files",
