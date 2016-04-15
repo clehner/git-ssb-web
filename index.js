@@ -132,7 +132,7 @@ function link(parts, text, raw, props) {
 
 function linkify(text) {
   // regex is from ssb-ref
-  return text.replace(/(@|%|&)[A-Za-z0-9\/+]{43}=\.[\w\d]+/g, function (str) {
+  return text.replace(/(@|%|&|&amp;)[A-Za-z0-9\/+]{43}=\.[\w\d]+/g, function (str) {
     return '<a href="/' + encodeURIComponent(str) + '">' + str + '</a>'
   })
 }
