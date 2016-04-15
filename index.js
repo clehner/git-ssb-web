@@ -1931,10 +1931,12 @@ module.exports = function (opts, cb) {
   }
 
   function serveBlob(req, key) {
-    getBlob(req, key, function (err, read) {
-      if (err) cb(null, serveError(req, err))
-      else if (!got) cb(null, serve404(req))
-      else cb(null, serveRaw()(read))
+    return readNext(function (cb) {
+      getBlob(req, key, function (err, read) {
+        if (err) cb(null, serveError(req, err))
+        else if (!read) cb(null, serve404(req))
+        else cb(null, serveRaw()(read))
+      })
     })
   }
 
