@@ -1905,7 +1905,6 @@ module.exports = function (opts, cb) {
   }
 
   function serveRaw(length, contentType) {
-    var inBody
     var headers = {
       'Content-Type': contentType || 'text/plain; charset=utf-8',
       'Cache-Control': 'max-age=31536000'
@@ -1913,12 +1912,7 @@ module.exports = function (opts, cb) {
     if (length != null)
       headers['Content-Length'] = length
     return function (read) {
-      return function (end, cb) {
-        if (inBody) return read(end, cb)
-        if (end) return cb(true)
-        cb(null, [200, headers])
-        inBody = true
-      }
+      return cat([pull.once([200, headers]), read])
     }
   }
 
