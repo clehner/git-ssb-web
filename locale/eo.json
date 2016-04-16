@@ -90,7 +90,7 @@
   "NoForks": "Neniu forkoj",
   "ForkRepoPrompt": "Forki ĉi tiun deponejon?",
   "Cancel": "Nuligi",
-  "state": {
+  "issues": {
     "Open": "Malfermitaj",
     "Closed": "Fermitaj",
     "All": "Ċiuj"
@@ -102,6 +102,10 @@
   "Title": "Titolo",
   "issue": {
     "": "temon",
+    "state": {
+      "Open": "Malfermita",
+      "Closed": "Fermita"
+    },
     "New": "Nova Temo",
     "Title": "Temo titolo",
     "Description": "Priskribo",

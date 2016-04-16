@@ -2053,9 +2053,9 @@ module.exports = function (opts, cb) {
           '</form>') +
         '<h3>' + req._t('Issues') + '</h3>' +
         nav([
-          ['?', req._t('state.Open'), 'open'],
-          ['?state=closed', req._t('state.Closed'), 'closed'],
-          ['?state=all', req._t('state.All'), 'all']
+          ['?', req._t('issues.Open'), 'open'],
+          ['?state=closed', req._t('issues.Closed'), 'closed'],
+          ['?state=all', req._t('issues.All'), 'all']
         ], state)),
       pull(
         issues.createFeedStream({ project: repo.id }),
@@ -2065,7 +2065,8 @@ module.exports = function (opts, cb) {
         pull.map(function (issue) {
           numIssues++
           var state = (issue.open ? 'open' : 'closed')
-          var stateStr = req._t(issue.open ? 'state.Open' : 'state.Closed')
+          var stateStr = req._t(issue.open ?
+            'issue.state.Open' : 'issue.state.Closed')
           return '<section class="collapse">' +
             '<i class="issue-state issue-state-' + state + '"' +
               ' title="' + stateStr + '">◼</i> ' +
@@ -2099,9 +2100,9 @@ module.exports = function (opts, cb) {
           '</form>') +
         '<h3>' + req._t('PullRequests') + '</h3>' +
         nav([
-          ['?', req._t('state.Open'), 'open'],
-          ['?state=closed', req._t('state.Closed'), 'closed'],
-          ['?state=all', req._t('state.All'), 'all']
+          ['?', req._t('issues.Open'), 'open'],
+          ['?state=closed', req._t('issues.Closed'), 'closed'],
+          ['?state=all', req._t('issues.All'), 'all']
         ], state)),
       pull(
         pullReqs.list({
@@ -2111,7 +2112,8 @@ module.exports = function (opts, cb) {
         pull.map(function (issue) {
           count++
           var state = (issue.open ? 'open' : 'closed')
-          var stateStr = req._t(issue.open ? 'state.Open' : 'state.Closed')
+          var stateStr = req._t(issue.open ?
+            'issue.state.Open' : 'issue.state.Closed')
           return '<section class="collapse">' +
             '<i class="issue-state issue-state-' + state + '"' +
               ' title="' + stateStr + '">◼</i> ' +
@@ -2158,9 +2160,9 @@ module.exports = function (opts, cb) {
         '<section class="collapse">' +
         (issue.open
           ? '<strong class="issue-status open">' +
-            req._t('state.Open') + '</strong>'
+            req._t('issue.state.Open') + '</strong>'
           : '<strong class="issue-status closed">' +
-            req._t('state.Closed') + '</strong>')),
+            req._t('issue.state.Closed') + '</strong>')),
       readOnce(function (cb) {
         about.getName(issue.author, function (err, authorName) {
           if (err) return cb(err)
@@ -2333,7 +2335,7 @@ module.exports = function (opts, cb) {
           cb(null, '<section class="collapse">' +
             '<strong class="issue-status ' +
             (pr.open ? 'open' : 'closed') + '">' +
-            req._t(pr.open ? 'state.Open' : 'state.Closed') +
+            req._t(pr.open ? 'issue.state.Open' : 'issue.state.Closed') +
             '</strong> ' +
             req._t('pullRequest.WantToMerge', {
               name: authorLink,

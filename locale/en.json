@@ -90,7 +90,7 @@
   "NoForks": "No forks",
   "ForkRepoPrompt": "Fork this repo?",
   "Cancel": "Cancel",
-  "state": {
+  "issues": {
     "Open": "Open",
     "Closed": "Closed",
     "All": "All"
@@ -102,6 +102,10 @@
   "Title": "Title",
   "issue": {
     "": "issue",
+    "state": {
+      "Open": "Open",
+      "Closed": "Closed"
+    },
     "New": "New Issue",
     "Title": "Issue Title",
     "Description": "Description",
