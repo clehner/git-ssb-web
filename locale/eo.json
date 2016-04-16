@@ -106,7 +106,7 @@
     "Title": "Temo titolo",
     "Description": "Priskribo",
     "Rename": "Renomiĝi la temon",
-    "Opened": "%{name} malfermis opened this issue on %{datetime}",
+    "Opened": "%{name} malfermis tiun temon je %{datetime}",
     "Reopened": "%{name} remalfermis tiun %{type}",
     "Closed": "%{name} fermis tiun %{type}",
     "Mentioned": "%{name} menciis tiun %{type}",
