@@ -1003,9 +1003,17 @@ module.exports = function (opts, cb) {
       }),
       pull.take(20),
       paramap(function (msg, cb) {
-        getRepoName(about, feedId, msg.key, function (err, repoName) {
+        var done = multicb({ pluck: 1, spread: true })
+        getRepoName(about, feedId, msg.key, done())
+        getVotes(msg.key, done())
+        done(function (err, repoName, votes) {
           if (err) return cb(err)
           cb(null, '<section class="collapse">' +
+            '<span class="right-bar">' +
+            '<i>✌</i> ' +
+            link([msg.key, 'digs'], votes.upvotes, true,
+              ' title="' + req._t('Digs') + '"') +
+            '</span>' +
             link([msg.key], repoName) +
           '</section>')
         })
