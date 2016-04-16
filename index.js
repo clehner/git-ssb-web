@@ -2198,8 +2198,8 @@ module.exports = function (opts, cb) {
           var changed = issues.isStatusChanged(msg, issue)
           return '<section class="collapse">' +
             (msg.key == postId ? '<div class="highlight">' : '') +
-            '<tt class="right-bar item-id">' + msg.key + '</tt>' +
-            (changed == null ? '' : ' ' + req._t(
+            '<tt class="right-bar item-id">' + msg.key + '</tt> ' +
+            (changed == null ? authorLink : req._t(
               changed ? 'issue.Reopened' : 'issue.Closed',
               {name: authorLink, type: type})) +
             ' &middot; ' + msgTimeLink +
