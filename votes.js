@@ -9,7 +9,7 @@ function getVotes(sbot, id, cb) {
   var upvoters, downvoters
   var result = {
     upvoters: upvoters = {},
-    downvotes: downvoters = {},
+    downvoters: downvoters = {},
     upvotes: 0,
     downvotes: 0
   }
