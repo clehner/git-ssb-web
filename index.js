@@ -1349,7 +1349,7 @@ module.exports = function (opts, cb) {
     if (!q) return serveIndex(req)
     var qId = q.replace(/^ssb:\/*/, '')
     if (ref.type(qId))
-      return serveRedirect(req, encodeURI(qId))
+      return serveRedirect(req, encodeURIComponent(qId))
 
     var search = new RegExp(q, 'i')
     return serveTemplate(req, req._t('Search') + ' &middot; ' + q, 200)(
