@@ -1199,10 +1199,10 @@ module.exports = function (opts, cb) {
               return serveRepoNewIssue(req, repo)
             break
           default:
-            return serveRepoIssues(req, repo, filePath)
+            return serveRepoIssues(req, repo, false)
         }
       case 'pulls':
-        return serveRepoPullReqs(req, repo)
+        return serveRepoIssues(req, repo, true)
       case 'compare':
         return serveRepoCompare(req, repo)
       case 'comparing':
@@ -2041,72 +2041,29 @@ module.exports = function (opts, cb) {
 
   /* Issues */
 
-  function serveRepoIssues(req, repo, path) {
-    var numIssues = 0
-    var state = req._u.query.state || 'open'
-    return renderRepoPage(req, repo, 'issues', null, cat([
-      pull.once(
-        (isPublic ? '' :
-          '<form class="right-bar" method="get"' +
-            ' action="' + encodeLink([repo.id, 'issues', 'new']) + '">' +
-            '<button class="btn">&plus; ' + req._t('issue.New') + '</button>' +
-          '</form>') +
-        '<h3>' + req._t('Issues') + '</h3>' +
-        nav([
-          ['?', req._t('issues.Open'), 'open'],
-          ['?state=closed', req._t('issues.Closed'), 'closed'],
-          ['?state=all', req._t('issues.All'), 'all']
-        ], state)),
-      pull(
-        issues.createFeedStream({ project: repo.id }),
-        pull.filter(function (issue) {
-          return state == 'all' ? true : (state == 'closed') == !issue.open
-        }),
-        pull.map(function (issue) {
-          numIssues++
-          var state = (issue.open ? 'open' : 'closed')
-          var stateStr = req._t(issue.open ?
-            'issue.state.Open' : 'issue.state.Closed')
-          return '<section class="collapse">' +
-            '<i class="issue-state issue-state-' + state + '"' +
-              ' title="' + stateStr + '">◼</i> ' +
-            '<a href="' + encodeLink(issue.id) + '">' +
-              escapeHTML(issue.title) +
-              '<span class="right-bar">' +
-                new Date(issue.created_at).toLocaleString(req._locale) +
-              '</span>' +
-            '</a>' +
-            '</section>'
-        })
-      ),
-      readOnce(function (cb) {
-        cb(null, numIssues > 0 ? '' : '<p>' + req._t('NoIssues') + '</p>')
-      })
-    ]))
-  }
-
-  /* Pull Requests */
-
-  function serveRepoPullReqs(req, repo) {
+  function serveRepoIssues(req, repo, isPRs) {
     var count = 0
     var state = req._u.query.state || 'open'
-    return renderRepoPage(req, repo, 'pulls', null, cat([
+    var newPath = isPRs ? [repo.id, 'compare'] : [repo.id, 'issues', 'new']
+    return renderRepoPage(req, repo, isPRs ? 'pulls' : 'issues', null, cat([
       pull.once(
         (isPublic ? '' :
           '<form class="right-bar" method="get"' +
-            ' action="' + encodeLink([repo.id, 'compare']) + '">' +
-            '<button class="btn">&plus; ' + req._t('pullRequest.New') +
+            ' action="' + encodeLink(newPath) + '">' +
+            '<button class="btn">&plus; ' +
+              req._t(isPRs ? 'pullRequest.New' : 'issue.New') +
             '</button>' +
           '</form>') +
-        '<h3>' + req._t('PullRequests') + '</h3>' +
+        '<h3>' + req._t(isPRs ? 'PullRequests' : 'Issues') + '</h3>' +
         nav([
           ['?', req._t('issues.Open'), 'open'],
           ['?state=closed', req._t('issues.Closed'), 'closed'],
           ['?state=all', req._t('issues.All'), 'all']
         ], state)),
       pull(
-        pullReqs.list({
+        (isPRs ? pullReqs : issues).list({
           repo: repo.id,
+          project: repo.id,
           open: {open: true, closed: false}[state]
         }),
         pull.map(function (issue) {
@@ -2127,7 +2084,8 @@ module.exports = function (opts, cb) {
         })
       ),
       readOnce(function (cb) {
-        cb(null, count > 0 ? '' : '<p>' + req._t('NoPullRequests') + '</p>')
+        cb(null, count > 0 ? '' :
+          '<p>' + req._t(isPRs ? 'NoPullRequests' : 'NoIssues') + '</p>')
       })
     ]))
   }
