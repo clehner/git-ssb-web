@@ -30,6 +30,8 @@
   "Named": "%{author} nomis %{target} %{name}",
   "Activity": "Aktivaĵo",
   "Repos": "Deponejoj",
+  "UpdatedOnDate": "Ĝisdatigis je %{date}",
+  "CreatedOnDate": "Kreis je %{date}",
   "Dig": "Digi",
   "Undig": "Maldigi",
   "Fork": "Forki",

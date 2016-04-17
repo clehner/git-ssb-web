@@ -994,27 +994,43 @@ module.exports = function (opts, cb) {
 
   function serveUserRepos(req, feedId) {
     return renderUserPage(req, feedId, 'repos', pull(
-      ssb.messagesByType({
-        type: 'git-repo',
-        reverse: true
-      }),
+      cat([
+        ssb.messagesByType({
+          type: 'git-update',
+          reverse: true
+        }),
+        ssb.messagesByType({
+          type: 'git-repo',
+          reverse: true
+        })
+      ]),
       pull.filter(function (msg) {
         return msg.value.author == feedId
       }),
+      pull.unique(function (msg) {
+        return msg.value.content.repo || msg.key
+      }),
       pull.take(20),
       paramap(function (msg, cb) {
+        var repoId = msg.value.content.repo || msg.key
         var done = multicb({ pluck: 1, spread: true })
-        getRepoName(about, feedId, msg.key, done())
-        getVotes(msg.key, done())
+        getRepoName(about, feedId, repoId, done())
+        getVotes(repoId, done())
         done(function (err, repoName, votes) {
           if (err) return cb(err)
           cb(null, '<section class="collapse">' +
             '<span class="right-bar">' +
             '<i>✌</i> ' +
-            link([msg.key, 'digs'], votes.upvotes, true,
+            link([repoId, 'digs'], votes.upvotes, true,
               ' title="' + req._t('Digs') + '"') +
             '</span>' +
-            link([msg.key], repoName) +
+            '<strong>' + link([repoId], repoName) + '</strong>' +
+            '<div class="date-info">' +
+            req._t(msg.value.content.type == 'git-update' ?
+              'UpdatedOnDate' : 'CreatedOnDate',
+            {
+              date: timestamp(msg.value.timestamp, req)
+            }) + '</div>' +
           '</section>')
         })
       }, 8)

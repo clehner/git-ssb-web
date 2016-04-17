@@ -30,6 +30,8 @@
   "Named": "%{author} named %{target} %{name}",
   "Activity": "Activity",
   "Repos": "Repos",
+  "UpdatedOnDate": "Updated %{date}",
+  "CreatedOnDate": "Created %{date}",
   "Dig": "Dig",
   "Undig": "Undig",
   "Fork": "Fork",
