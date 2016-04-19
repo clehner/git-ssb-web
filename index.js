@@ -2330,31 +2330,37 @@ module.exports = function (opts, cb) {
           [[pr.id, 'files'], req._t('Files'), 'files']
         ], page)),
       readNext(function (cb) {
-        if (page == 'commits') cb(null,
-          renderPullReqCommits(req, pr, repo, headRepo))
-        else if (page == 'files') cb(null,
-          renderPullReqFiles(req, pr, repo, headRepo))
+        if (page == 'commits')
+          renderPullReqCommits(req, pr, repo, headRepo, cb)
+        else if (page == 'files')
+          renderPullReqFiles(req, pr, repo, headRepo, cb)
         else cb(null,
           renderPullReqActivity(req, pr, repo, headRepo, authorLink, postId))
       })
     ]))
   }
 
-  function renderPullReqCommits(req, pr, baseRepo, headRepo) {
-    return cat([
-      pull.once('<section>'),
-      renderCommitLog(req, baseRepo, pr.baseBranch, headRepo, pr.headBranch),
-      pull.once('</section>')
-    ])
+  function renderPullReqCommits(req, pr, baseRepo, headRepo, cb) {
+    pullReqs.getRevs(pr.id, function (err, revs) {
+      if (err) return cb(null, renderError(err))
+      cb(null, cat([
+        pull.once('<section>'),
+        renderCommitLog(req, baseRepo, revs.base, headRepo, revs.head),
+        pull.once('</section>')
+      ]))
+    })
   }
 
-  function renderPullReqFiles(req, pr, baseRepo, headRepo) {
-    return cat([
-      pull.once('<section>'),
-      renderDiffStat(req,
-        [baseRepo, headRepo], [pr.baseBranch, pr.headBranch]),
-      pull.once('</section>')
-    ])
+  function renderPullReqFiles(req, pr, baseRepo, headRepo, cb) {
+    pullReqs.getRevs(pr.id, function (err, revs) {
+      if (err) return cb(null, renderError(err))
+      cb(null, cat([
+        pull.once('<section>'),
+        renderDiffStat(req,
+          [baseRepo, headRepo], [revs.base, revs.head]),
+        pull.once('</section>')
+      ]))
+    })
   }
 
   function renderPullReqActivity(req, pr, repo, headRepo, authorLink, postId) {
