@@ -54,6 +54,14 @@ blockRenderer.image = function (href, title, text) {
     (title ? ' title="' + title + '"' : '') + '/>'
 }
 
+blockRenderer.mention = function (preceding, id) {
+  // prevent broken name mention
+  if (id[0] == '@' && !ref.isFeed(id))
+    return (preceding||'') + escapeHTML(id)
+
+  return marked.Renderer.prototype.mention.call(this, preceding, id)
+}
+
 function getExtension(filename) {
   return (/\.([^.]+)$/.exec(filename) || [,filename])[1]
 }
