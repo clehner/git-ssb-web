@@ -43,6 +43,8 @@ blockRenderer.image = function (href, title, text) {
   var url
   if (ref.isBlobId(href))
     url = encodeLink(href)
+  else if (/^https?:\/\//.test(href))
+    url = href
   else if (this.options.repo && this.options.rev && this.options.path)
     url = path.join('/', encodeURIComponent(this.options.repo.id),
       'raw', this.options.rev, this.options.path.join('/'), href)

@@ -100,6 +100,10 @@ i {
   font-style: inherit;
 }
 
+section img {
+  max-width: 100%;
+}
+
 /* repo page */
 
 .repo-title {
