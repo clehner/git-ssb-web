@@ -28,8 +28,7 @@ Options:
 
 
 [secure-scuttlebutt]: https://github.com/ssbc/secure-scuttlebutt
-[git-ssb]: https://github.com/clehner/git-ssb
-[git-remote-ssb]: https://github.com/clehner/git-remote-ssb
+[git-ssb]: %n92DiQh7ietE+R+X/I403LQoyf2DtR3WQfCkDKlheQU=.sha256
 
 ## License
 
