@@ -31,6 +31,7 @@
   "CommentedOn": "%{author} commented on %{target}",
   "Activity": "Activity",
   "Repos": "Repos",
+  "UsersRepos": "%{name}'s repos",
   "UpdatedOnDate": "Updated %{date}",
   "CreatedOnDate": "Created %{date}",
   "Dig": "Dig",
@@ -78,6 +79,7 @@
     "changedMode": "changed mode from %{old} to %{new}",
     "changed": "changed"
   },
+  "TagName": "Tag %{tag}",
   "View": "View",
   "Info": "Info",
   "Update": "Update",

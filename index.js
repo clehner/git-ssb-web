@@ -997,28 +997,34 @@ module.exports = function (opts, cb) {
     }
   }
 
-  function renderUserPage(req, feedId, page, body) {
-    return serveTemplate(req, feedId)(cat([
-      readOnce(function (cb) {
-        about.getName(feedId, function (err, name) {
-          cb(null, '<h2>' + link([feedId], name) +
+  function renderUserPage(req, feedId, page, titleTemplate, body) {
+    return readNext(function (cb) {
+      about.getName(feedId, function (err, name) {
+        if (err) return cb(err)
+        var title = titleTemplate ? titleTemplate
+          .replace(/\%{name\}/g, escapeHTML(name))
+          : escapeHTML(name)
+        cb(null, serveTemplate(req, title)(cat([
+          pull.once('<h2>' + link([feedId], name) +
           '<code class="user-id">' + feedId + '</code></h2>' +
           nav([
             [[feedId], req._t('Activity'), 'activity'],
             [[feedId, 'repos'], req._t('Repos'), 'repos']
-          ], page))
-        })
-      }),
-      body,
-    ]))
+          ], page)),
+          body
+        ])))
+      })
+    })
   }
 
   function serveUserActivity(req, feedId) {
-    return renderUserPage(req, feedId, 'activity', renderFeed(req, feedId))
+    return renderUserPage(req, feedId, 'activity', null,
+      renderFeed(req, feedId))
   }
 
   function serveUserRepos(req, feedId) {
-    return renderUserPage(req, feedId, 'repos', pull(
+    var title = req._t('UsersRepos', {name: '%{name}'})
+    return renderUserPage(req, feedId, 'repos', title, pull(
       cat([
         ssb.messagesByType({
           type: 'git-update',
@@ -1263,7 +1269,7 @@ module.exports = function (opts, cb) {
     ]))
   }
 
-  function renderRepoPage(req, repo, page, branch, body) {
+  function renderRepoPage(req, repo, page, branch, titleTemplate, body) {
     var gitUrl = 'ssb://' + repo.id
     var gitLink = '<input class="clone-url" readonly="readonly" ' +
       'value="' + gitUrl + '" size="45" ' +
@@ -1287,7 +1293,11 @@ module.exports = function (opts, cb) {
         var upvoted = votes.upvoters[myId] > 0
         var upstreamLink = !repo.upstream ? '' :
           link([repo.upstream])
-        cb(null, serveTemplate(req, repo.id)(cat([
+        var title = titleTemplate ? titleTemplate
+          .replace(/%\{repo\}/g, repoName)
+          .replace(/%\{author\}/g, authorName)
+          : authorName + '/' + repoName
+        cb(null, serveTemplate(req, title)(cat([
           pull.once(
             '<div class="repo-title">' +
             '<form class="right-bar" action="" method="post">' +
@@ -1331,13 +1341,13 @@ module.exports = function (opts, cb) {
 
   function serveEmptyRepo(req, repo) {
     if (repo.feed != myId)
-      return renderRepoPage(req, repo, 'code', null, pull.once(
+      return renderRepoPage(req, repo, 'code', null, null, pull.once(
         '<section>' +
         '<h3>' + req._t('EmptyRepo') + '</h3>' +
         '</section>'))
 
     var gitUrl = 'ssb://' + repo.id
-    return renderRepoPage(req, repo, 'code', null, pull.once(
+    return renderRepoPage(req, repo, 'code', null, null, pull.once(
       '<section>' +
       '<h3>' + req._t('initRepo.GettingStarted') + '</h3>' +
       '<h4>' + req._t('initRepo.CreateNew') + '</h4><pre>' +
@@ -1356,7 +1366,10 @@ module.exports = function (opts, cb) {
   function serveRepoTree(req, repo, rev, path) {
     if (!rev) return serveEmptyRepo(req, repo)
     var type = repo.isCommitHash(rev) ? 'Tree' : 'Branch'
-    return renderRepoPage(req, repo, 'code', rev, cat([
+    var title = (path.length ? path.join('/') + ' · ' : '') +
+      '%{author}/%{repo}' +
+      (repo.head == 'refs/heads/' + rev ? '' : '@' + rev)
+    return renderRepoPage(req, repo, 'code', rev, title, cat([
       pull.once('<section><form action="" method="get">' +
         '<h3>' + req._t(type) + ': ' + rev + ' '),
       revMenu(req, repo, rev),
@@ -1420,7 +1433,8 @@ module.exports = function (opts, cb) {
   /* Repo activity */
 
   function serveRepoActivity(req, repo, branch) {
-    return renderRepoPage(req, repo, 'activity', branch, cat([
+    var title = req._t('Activity') + ' · %{author}/%{repo}'
+    return renderRepoPage(req, repo, 'activity', branch, title, cat([
       pull.once('<h3>' + req._t('Activity') + '</h3>'),
       pull(
         ssb.links({
@@ -1490,7 +1504,8 @@ module.exports = function (opts, cb) {
 
   function serveRepoCommits(req, repo, branch) {
     var query = req._u.query
-    return renderRepoPage(req, repo, 'commits', branch, cat([
+    var title = req._t('Commits') + ' · %{author}/%{repo}'
+    return renderRepoPage(req, repo, 'commits', branch, title, cat([
       pull.once('<h3>' + req._t('Commits') + '</h3>'),
       pull(
         repo.readLog(query.start || branch),
@@ -1667,53 +1682,57 @@ module.exports = function (opts, cb) {
   /* Repo commit */
 
   function serveRepoCommit(req, repo, rev) {
-    return renderRepoPage(req, repo, null, rev, cat([
-      readNext(function (cb) {
-        repo.getCommitParsed(rev, function (err, commit) {
-          if (err) return cb(err)
-          var commitPath = [repo.id, 'commit', commit.id]
-          var treePath = [repo.id, 'tree', commit.id]
-          cb(null, cat([pull.once(
-            '<h3>' + link(commitPath,
-              req._t('CommitRev', {rev: rev})) + '</h3>' +
-            '<section class="collapse">' +
-            '<div class="right-bar">' +
-              link(treePath, req._t('BrowseFiles')) +
-            '</div>' +
-            '<h4>' + linkify(escapeHTML(commit.title)) + '</h4>' +
-            (commit.body ? linkify(pre(commit.body)) : '') +
-            (commit.separateAuthor ? req._t('AuthoredOn', {
-              name: escapeHTML(commit.author.name),
-              date: commit.author.date.toLocaleString(req._locale)
-            }) + '<br/>' : '') +
-            req._t('CommittedOn', {
-              name: escapeHTML(commit.committer.name),
-              date: commit.committer.date.toLocaleString(req._locale)
-            }) + '<br/>' +
-            commit.parents.map(function (id) {
-              return req._t('Parent') + ': ' +
-                link([repo.id, 'commit', id], id)
-            }).join('<br>') +
-            '</section>' +
-            '<section><h3>' + req._t('FilesChanged') + '</h3>'),
-            // TODO: show diff from all parents (merge commits)
-            renderDiffStat(req, [repo, repo], [commit.parents[0], commit.id]),
-            pull.once('</section>')
-          ]))
-        })
+    return readNext(function (cb) {
+      repo.getCommitParsed(rev, function (err, commit) {
+        if (err) return cb(err)
+        var commitPath = [repo.id, 'commit', commit.id]
+        var treePath = [repo.id, 'tree', commit.id]
+        var title = escapeHTML(commit.title) + ' · ' +
+          '%{author}/%{repo}@' + commit.id.substr(0, 8)
+        cb(null, renderRepoPage(req, repo, null, rev, title, cat([
+          pull.once(
+          '<h3>' + link(commitPath,
+            req._t('CommitRev', {rev: rev})) + '</h3>' +
+          '<section class="collapse">' +
+          '<div class="right-bar">' +
+            link(treePath, req._t('BrowseFiles')) +
+          '</div>' +
+          '<h4>' + linkify(escapeHTML(commit.title)) + '</h4>' +
+          (commit.body ? linkify(pre(commit.body)) : '') +
+          (commit.separateAuthor ? req._t('AuthoredOn', {
+            name: escapeHTML(commit.author.name),
+            date: commit.author.date.toLocaleString(req._locale)
+          }) + '<br/>' : '') +
+          req._t('CommittedOn', {
+            name: escapeHTML(commit.committer.name),
+            date: commit.committer.date.toLocaleString(req._locale)
+          }) + '<br/>' +
+          commit.parents.map(function (id) {
+            return req._t('Parent') + ': ' +
+              link([repo.id, 'commit', id], id)
+          }).join('<br>') +
+          '</section>' +
+          '<section><h3>' + req._t('FilesChanged') + '</h3>'),
+          // TODO: show diff from all parents (merge commits)
+          renderDiffStat(req, [repo, repo], [commit.parents[0], commit.id]),
+          pull.once('</section>')
+        ])))
       })
-    ]))
+    })
   }
 
   /* Repo tag */
 
   function serveRepoTag(req, repo, rev) {
-    return renderRepoPage(req, repo, 'tags', rev, readNext(function (cb) {
+    return readNext(function (cb) {
       repo.getTagParsed(rev, function (err, tag) {
         if (err) return cb(err)
+        var title = req._t('TagName', {
+          tag: escapeHTML(tag.tag)
+        }) + ' · %{author}/%{repo}'
         var body = (tag.title + '\n\n' +
           tag.body.replace(/-----BEGIN PGP SIGNATURE-----\n[^.]*?\n-----END PGP SIGNATURE-----\s*$/, '')).trim()
-        cb(null, pull.once(
+        cb(null, renderRepoPage(req, repo, 'tags', tag.object, title, pull.once(
           '<section class="collapse">' +
           '<h3>' + link([repo.id, 'tag', rev], tag.tag) + '</h3>' +
           req._t('TaggedOn', {
@@ -1722,9 +1741,9 @@ module.exports = function (opts, cb) {
           }) + '<br/>' +
         link([repo.id, tag.type, tag.object]) +
         linkify(pre(body)) +
-        '</section>'))
+        '</section>')))
       })
-    }))
+    })
   }
 
 
@@ -1834,7 +1853,7 @@ module.exports = function (opts, cb) {
   /* An unknown message linking to a repo */
 
   function serveRepoSomething(req, repo, id, msg, path) {
-    return renderRepoPage(req, repo, null, null,
+    return renderRepoPage(req, repo, null, null, null,
       pull.once('<section><h3>' + link([id]) + '</h3>' +
         json(msg) + '</section>'))
   }
@@ -1852,9 +1871,10 @@ module.exports = function (opts, cb) {
 
   function serveRepoUpdate(req, repo, id, msg, path) {
     var raw = req._u.query.raw != null
+    var title = req._t('Update') + ' · %{author}/%{repo}'
 
     if (raw)
-      return renderRepoPage(req, repo, 'activity', null, pull.once(
+      return renderRepoPage(req, repo, 'activity', null, title, pull.once(
         '<a href="?" class="raw-link header-align">' +
           req._t('Info') + '</a>' +
         '<h3>' + req._t('Update') + '</h3>' +
@@ -1904,7 +1924,7 @@ module.exports = function (opts, cb) {
       )
     ])
 
-    return renderRepoPage(req, repo, 'activity', null, cat([
+    return renderRepoPage(req, repo, 'activity', null, title, cat([
       pull.once('<a href="?raw" class="raw-link header-align">' +
         req._t('Data') + '</a>' +
         '<h3>' + req._t('Update') + '</h3>' +
@@ -1930,7 +1950,10 @@ module.exports = function (opts, cb) {
         var dirPath = path.slice(0, path.length-1)
         var filename = path[path.length-1]
         var extension = getExtension(filename)
-        cb(null, renderRepoPage(req, repo, 'code', rev, cat([
+        var title = (path.length ? path.join('/') + ' · ' : '') +
+          '%{author}/%{repo}' +
+          (repo.head == 'refs/heads/' + rev ? '' : '@' + rev)
+        cb(null, renderRepoPage(req, repo, 'code', rev, title, cat([
           pull.once('<section><form action="" method="get">' +
             '<h3>' + req._t(type) + ': ' + rev + ' '),
           revMenu(req, repo, rev),
@@ -2011,8 +2034,9 @@ module.exports = function (opts, cb) {
 
   function serveRepoDigs(req, repo) {
     return readNext(function (cb) {
+    var title = req._t('Digs') + ' · %{author}/%{repo}'
       getVotes(repo.id, function (err, votes) {
-        cb(null, renderRepoPage(req, repo, null, null, cat([
+        cb(null, renderRepoPage(req, repo, null, null, title, cat([
           pull.once('<section><h3>' + req._t('Digs') + '</h3>' +
             '<div>' + req._t('Total') + ': ' + votes.upvotes + '</div>'),
           pull(
@@ -2067,7 +2091,8 @@ module.exports = function (opts, cb) {
 
   function serveRepoForks(req, repo) {
     var hasForks
-    return renderRepoPage(req, repo, null, null, cat([
+    var title = req._t('Forks') + ' · %{author}/%{repo}'
+    return renderRepoPage(req, repo, null, null, title, cat([
       pull.once('<h3>' + req._t('Forks') + '</h3>'),
       pull(
         getForks(repo),
@@ -2088,7 +2113,8 @@ module.exports = function (opts, cb) {
   }
 
   function serveRepoForkPrompt(req, repo) {
-    return renderRepoPage(req, repo, null, null, pull.once(
+    var title = req._t('Fork') + ' · %{author}/%{repo}'
+    return renderRepoPage(req, repo, null, null, title, pull.once(
       '<form action="" method="post" onreset="history.back()">' +
       '<h3>' + req._t('ForkRepoPrompt') + '</h3>' +
       '<p>' + hiddenInputs({ id: repo.id }) +
@@ -2107,7 +2133,8 @@ module.exports = function (opts, cb) {
     var count = 0
     var state = req._u.query.state || 'open'
     var newPath = isPRs ? [repo.id, 'compare'] : [repo.id, 'issues', 'new']
-    return renderRepoPage(req, repo, isPRs ? 'pulls' : 'issues', null, cat([
+    var title = req._t('Issues') + ' · %{author}/%{repo}'
+    return renderRepoPage(req, repo, isPRs ? 'pulls' : 'issues', null, title, cat([
       pull.once(
         (isPublic ? '' :
           '<form class="right-bar" method="get"' +
@@ -2155,7 +2182,8 @@ module.exports = function (opts, cb) {
   /* New Issue */
 
   function serveRepoNewIssue(req, repo, issueId, path) {
-    return renderRepoPage(req, repo, 'issues', null, pull.once(
+    var title = req._t('issue.New') + ' · %{author}/%{repo}'
+    return renderRepoPage(req, repo, 'issues', null, title, pull.once(
       '<h3>' + req._t('issue.New') + '</h3>' +
       '<section><form action="" method="post">' +
       '<input type="hidden" name="action" value="new-issue">' +
@@ -2171,7 +2199,8 @@ module.exports = function (opts, cb) {
   function serveRepoIssue(req, repo, issue, path, postId) {
     var isAuthor = (myId == issue.author) || (myId == repo.feed)
     var newestMsg = {key: issue.id, value: {timestamp: issue.created_at}}
-    return renderRepoPage(req, repo, 'issues', null, cat([
+    var title = escapeHTML(issue.title) + ' · %{author}/%{repo}'
+    return renderRepoPage(req, repo, 'issues', null, title, cat([
       pull.once(
         renderNameForm(req, !isPublic, issue.id, issue.title, 'issue-title',
           null, req._t('issue.Rename'),
@@ -2324,7 +2353,8 @@ module.exports = function (opts, cb) {
   function serveRepoPullReq(req, repo, pr, path, postId) {
     var headRepo, authorLink
     var page = path[0] || 'activity'
-    return renderRepoPage(req, repo, 'pulls', null, cat([
+    var title = escapeHTML(pr.title) + ' · %{author}/%{repo}'
+    return renderRepoPage(req, repo, 'pulls', null, title, cat([
       pull.once('<div class="pull-request">' +
         renderNameForm(req, !isPublic, pr.id, pr.title, 'issue-title', null,
           req._t('pullRequest.Rename'),
@@ -2516,8 +2546,9 @@ module.exports = function (opts, cb) {
     var query = req._u.query
     var base
     var count = 0
+    var title = req._t('CompareChanges') + ' · %{author}/%{repo}'
 
-    return renderRepoPage(req, repo, 'pulls', null, cat([
+    return renderRepoPage(req, repo, 'pulls', null, title, cat([
       pull.once('<h3>' + req._t('CompareChanges') + '</h3>' +
         '<form action="' + encodeLink(repo.id) + '/comparing" method="get">' +
         '<section>'),
@@ -2598,11 +2629,11 @@ module.exports = function (opts, cb) {
     var baseLink = link([repo.id, 'tree', baseBranch])
     var headBranchLink = link([headRepoId, 'tree', headBranch])
     var backHref = encodeLink([repo.id, 'compare']) + req._u.search
+    var title = req._t(query.expand ? 'OpenPullRequest': 'ComparingChanges')
+    var pageTitle = title + ' · %{author}/%{repo}'
 
-    return renderRepoPage(req, repo, 'pulls', null, cat([
-      pull.once('<h3>' +
-      req._t(query.expand ? 'OpenPullRequest': 'ComparingChanges') +
-      '</h3>'),
+    return renderRepoPage(req, repo, 'pulls', null, pageTitle, cat([
+      pull.once('<h3>' + title + '</h3>'),
       readNext(function (cb) {
         getRepo(headRepoId, function (err, headRepo) {
           if (err) return cb(err)

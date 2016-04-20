@@ -31,6 +31,7 @@
   "CommentedOn": "%{author} komentis %{target}",
   "Activity": "Aktivaĵo",
   "Repos": "Deponejoj",
+  "UsersRepos": "Deponejoj de %{name}",
   "UpdatedOnDate": "Ĝisdatigis je %{date}",
   "CreatedOnDate": "Kreis je %{date}",
   "Dig": "Digi",
@@ -78,6 +79,7 @@
     "changedMode": "ŝanĝis reĝimon de %{old} al %{new}",
     "changed": "ŝanĝis"
   },
+  "TagName": "Tag %{tag}",
   "View": "Vidu",
   "Info": "Informo",
   "Update": "Ĝisdatigo",
