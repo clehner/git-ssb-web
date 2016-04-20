@@ -58,7 +58,6 @@
   "Branch": "Branĉo",
   "Search": "Serĉi",
   "PushedObjects": "Puŝis %{smart_count} objektoj |||| Puŝis %{smart_count} objekto",
-  "DeletedBranch": "Forviis %{branch}",
   "AuthoredOn": "%{name} aŭtoris je %{date}",
   "CommittedOn": "%{name} enmetis je %{date}",
   "TaggedOn": "%{name} etikedis je %{date}",

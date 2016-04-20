@@ -1457,23 +1457,32 @@ module.exports = function (opts, cb) {
       // TODO: render post, issue, pull-request
     }
 
-    var refs = c.refs ? Object.keys(c.refs).map(function (ref) {
-      return {name: ref, value: c.refs[ref]}
-    }) : []
+    var branches = []
+    var tags = []
+    if (c.refs) for (var name in c.refs) {
+      var m = name.match(/^refs\/(heads|tags)\/(.*)$/) || [,, name]
+      ;(m[1] == 'tags' ? tags : branches)
+        .push({name: m[2], value: c.refs[name]})
+    }
     var numObjects = c.objects ? Object.keys(c.objects).length : 0
 
     var dateStr = new Date(msg.value.timestamp).toLocaleString(req._locale)
     return '<section class="collapse">' +
       link([msg.key], dateStr) + '<br>' +
-      refs.map(function (update) {
-        var name = escapeHTML(update.name)
+      branches.map(function (update) {
         if (!update.value) {
-          return req._t('DeletedBranch', {branch: name})
+          return '<s>' + escapeHTML(update.name) + '</s><br/>'
         } else {
           var commitLink = link([repo.id, 'commit', update.value])
-          return name + ' &rarr; <tt>' + commitLink + '</tt>'
+          var branchLink = link([repo.id, 'tree', update.name])
+          return branchLink + ' &rarr; <tt>' + commitLink + '</tt><br/>'
         }
-      }).join('<br>') +
+      }).join('') +
+      tags.map(function (update) {
+        return update.value
+          ? link([repo.id, 'tag', update.value], update.name)
+          : '<s>' + escapeHTML(update.name) + '</s>'
+      }).join(', ') +
       '</section>'
   }
 
