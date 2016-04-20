@@ -1455,7 +1455,7 @@ module.exports = function (opts, cb) {
           return req._t('DeletedBranch', {branch: name})
         } else {
           var commitLink = link([repo.id, 'commit', update.value])
-          return name + ' &rarr; ' + commitLink
+          return name + ' &rarr; <tt>' + commitLink + '</tt>'
         }
       }).join('<br>') +
       '</section>'
