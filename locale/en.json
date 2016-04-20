@@ -57,7 +57,7 @@
   "Branch": "Branch",
   "Search": "Search",
   "PushedObjects": "Pushed %{smart_count} object |||| Pushed %{smart_count} objects",
-  "DeletedBranch": "Deleted {branch}",
+  "DeletedBranch": "Deleted %{branch}",
   "AuthoredOn": "%{name} authored on %{date}",
   "CommittedOn": "%{name} committed on %{date}",
   "Branches": "Branches",
