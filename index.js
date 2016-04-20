@@ -1465,7 +1465,6 @@ module.exports = function (opts, cb) {
     var dateStr = new Date(msg.value.timestamp).toLocaleString(req._locale)
     return '<section class="collapse">' +
       link([msg.key], dateStr) + '<br>' +
-      (numObjects ? req._t('PushedObjects', numObjects) + '<br/>': '') +
       refs.map(function (update) {
         var name = escapeHTML(update.name)
         if (!update.value) {
@@ -1863,62 +1862,50 @@ module.exports = function (opts, cb) {
       }
     }
 
-    return renderRepoPage(req, repo, 'activity', null, cat([
-      pull.values([
-        '<a href="?raw" class="raw-link header-align">' +
-          req._t('Data') + '</a>',
-        '<h3>' + req._t('Update') + '</h3>',
-        renderRepoUpdate(req, repo, {key: id, value: msg}, true)
-      ].concat(msg.content.objects ?
-        ['<h3>' + req._t('Objects') + '</h3>'].concat(
-          objsArr(msg.content.objects).map(renderObject.bind(null, req)))
-      : [],
-      msg.content.packs ? [
-        '<h3>' + req._t('Packs') + '</h3>'
-      ].concat(msg.content.packs.map(renderPack.bind(null, req)))
-      : [])),
-      msg.content.packs && cat([
-        pull.once('<h3>' + req._t('Commits') + '</h3>'),
-        pull(
-          pull.values(msg.content.packs),
-          pull.asyncMap(function (pack, cb) {
-            var done = multicb({ pluck: 1, spread: true })
-            getBlob(req, pack.pack.link, done())
-            getBlob(req, pack.idx.link, done())
-            done(function (err, readPack, readIdx) {
-              if (err) return cb(renderError(err))
-              cb(null, gitPack.decodeWithIndex(repo, readPack, readIdx))
-            })
-          }),
-          pull.flatten(),
-          pull.asyncMap(function (obj, cb) {
-            if (obj.type == 'commit')
-              Repo.getCommitParsed(obj, cb)
-            else
-              pull(obj.read, pull.drain(null, cb))
-          }),
-          pull.filter(),
-          pull.map(function (commit) {
-            return renderCommit(req, repo, commit)
+    var commits = cat([
+      msg.content.objects && pull(
+        pull.values(msg.content.objects),
+        pull.filter(function (obj) { return obj.type == 'commit' }),
+        paramap(function (obj, cb) {
+          getBlob(req, obj.link || obj.key, function (err, readObject) {
+            if (err) return cb(err)
+            Repo.getCommitParsed({read: readObject}, cb)
           })
-        )
-      ])
+        }, 8)
+      ),
+      msg.content.packs && pull(
+        pull.values(msg.content.packs),
+        paramap(function (pack, cb) {
+          var done = multicb({ pluck: 1, spread: true })
+          getBlob(req, pack.pack.link, done())
+          getBlob(req, pack.idx.link, done())
+          done(function (err, readPack, readIdx) {
+            if (err) return cb(renderError(err))
+            cb(null, gitPack.decodeWithIndex(repo, readPack, readIdx))
+          })
+        }, 4),
+        pull.flatten(),
+        pull.asyncMap(function (obj, cb) {
+          if (obj.type == 'commit')
+            Repo.getCommitParsed(obj, cb)
+          else
+            pull(obj.read, pull.drain(null, cb))
+        }),
+        pull.filter()
+      )
+    ])
+
+    return renderRepoPage(req, repo, 'activity', null, cat([
+      pull.once('<a href="?raw" class="raw-link header-align">' +
+        req._t('Data') + '</a>' +
+        '<h3>' + req._t('Update') + '</h3>' +
+        renderRepoUpdate(req, repo, {key: id, value: msg}, true)),
+      (msg.content.objects || msg.content.packs) &&
+        pull.once('<h3>' + req._t('Commits') + '</h3>'),
+      pull(commits, pull.map(function (commit) {
+        return renderCommit(req, repo, commit)
+      }))
     ]))
-  }
-
-  function renderObject(req, obj) {
-    return '<section class="collapse">' +
-      obj.type + ' ' + link([obj.link], obj.sha1) + '<br>' +
-      req._t('NumBytes', obj.length) +
-      '</section>'
-  }
-
-  function renderPack(req, info) {
-    return '<section class="collapse">' +
-      (info.pack ? req._t('Pack') + ': ' +
-        link([info.pack.link]) + '<br>' : '') +
-      (info.idx ? req._t('Index') + ': ' +
-        link([info.idx.link]) : '') + '</section>'
   }
 
   /* Blob */

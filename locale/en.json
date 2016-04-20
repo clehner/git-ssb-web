@@ -83,7 +83,6 @@
   "Info": "Info",
   "Update": "Update",
   "Data": "Data",
-  "Objects": "Objects",
   "NumBytes": "%{smart_count} byte |||| %{smart_count} bytes",
   "Pack": "Pack",
   "Packs": "Packs",
