@@ -1221,6 +1221,8 @@ module.exports = function (opts, cb) {
         return serveRepoCommits(req, repo, branch)
       case 'commit':
         return serveRepoCommit(req, repo, path[1])
+      case 'tag':
+        return serveRepoTag(req, repo, branch)
       case 'tree':
         return serveRepoTree(req, repo, branch, filePath)
       case 'blob':
@@ -1694,6 +1696,29 @@ module.exports = function (opts, cb) {
       })
     ]))
   }
+
+  /* Repo tag */
+
+  function serveRepoTag(req, repo, rev) {
+    return renderRepoPage(req, repo, 'tags', rev, readNext(function (cb) {
+      repo.getTagParsed(rev, function (err, tag) {
+        if (err) return cb(err)
+        var body = (tag.title + '\n\n' +
+          tag.body.replace(/-----BEGIN PGP SIGNATURE-----\n[^.]*?\n-----END PGP SIGNATURE-----\s*$/, '')).trim()
+        cb(null, pull.once(
+          '<section class="collapse">' +
+          '<h3>' + link([repo.id, 'tag', rev], tag.tag) + '</h3>' +
+          req._t('TaggedOn', {
+            name: escapeHTML(tag.tagger.name),
+            date: tag.tagger.date.toLocaleString(req._locale)
+          }) + '<br/>' +
+        link([repo.id, tag.type, tag.object]) +
+        linkify(pre(body)) +
+        '</section>'))
+      })
+    }))
+  }
+
 
   /* Diff stat */
 

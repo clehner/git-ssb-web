@@ -61,6 +61,7 @@
   "DeletedBranch": "Forviis %{branch}",
   "AuthoredOn": "%{name} aŭtoris je %{date}",
   "CommittedOn": "%{name} enmetis je %{date}",
+  "TaggedOn": "%{name} etikedis je %{date}",
   "Branches": "Branĉoj",
   "Tags": "Etikedoj",
   "Go": "Iri",

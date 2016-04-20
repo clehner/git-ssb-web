@@ -61,6 +61,7 @@
   "DeletedBranch": "Deleted %{branch}",
   "AuthoredOn": "%{name} authored on %{date}",
   "CommittedOn": "%{name} committed on %{date}",
+  "TaggedOn": "%{name} tagged on %{date}",
   "Branches": "Branches",
   "Tags": "Tags",
   "Go": "Go",
