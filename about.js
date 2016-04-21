@@ -63,18 +63,28 @@ function getAboutFull(sbot, source, dest, cb) {
       return msg && msg.value.content
     }),
     pull.drain(function (msg) {
-      if (info.name && info.image) return false
+      if (info.name && info.image)
+        return gotIt()
       var c = msg.value.content
       if (!info.name && c.name)
         info.name = c.name
       if (!info.image && c.image)
         info.image = c.image.link
-    }, function (err) {
-        if (err && err !== true) return cb(err)
-        if (!info.name) info.name = truncate(target, 20)
-        cb(null, info)
-    })
+    }, gotIt)
   )
+
+  function gotIt(err) {
+    if (!cb) {
+      if (err && err !== true)
+        console.error(err)
+      return
+    }
+    var _cb = cb
+    cb = null
+    if (err && err !== true) return _cb(err)
+    if (!info.name) info.name = truncate(target, 20)
+    _cb(null, info)
+  }
 
   // Keep updated as changes are made
   pull(
