@@ -10,16 +10,14 @@ var config = require('ssb-config/inject')(appName)
 var ssbClient = require('ssb-client')
 var keys = require('ssb-keys')
   .loadOrCreateSync(require('path').join(config.path, 'secret'))
+var Web = require('.')
 
-var opts = config
-opts.listenAddr = opts._[1]
-opts.appname = appName
+config.listenAddr = config._[1]
+config.appname = appName
 
-require('.')(opts, function (err, server) {
-  require('ssb-reconnect')(function (cb) {
-    ssbClient(keys, config, cb)
-  }, function (err, ssb, reconnect) {
-    if (err) throw err
-    server.setSSB(ssb, reconnect)
-  })
+require('ssb-reconnect')(function (cb) {
+  ssbClient(keys, config, cb)
+}, function (err, ssb, reconnect) {
+  if (err) throw err
+  Web.init(ssb, config, reconnect)
 })
