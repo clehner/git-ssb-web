@@ -119,7 +119,7 @@
     "Closed": "%{name} closed this %{type}",
     "Mentioned": "%{name} mentioned this %{type}",
     "MentionedIn": "%{name} mentioned this %{type} in %{post}",
-    "Renamed": "%{name} renamed this %{type} to %{name}",
+    "Renamed": "%{author} renamed this %{type} to %{name}",
     "Comment": "Comment",
     "Close": "Close %{type}",
     "Reopen": "Reopen %{type}"

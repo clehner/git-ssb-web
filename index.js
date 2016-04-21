@@ -2330,7 +2330,7 @@ G.renderIssueActivityMsg = function (req, repo, issue, type, postId, msg) {
       return '<section class="collapse">' +
         (msg.key == postId ? '<div class="highlight">' : '') +
         (c.title == null ? '' : req._t('issue.Renamed', {
-          name: authorLink,
+          author: authorLink,
           type: type,
           name: '<q>' + escapeHTML(c.title) + '</q>'
         })) + ' &middot; ' + msgTimeLink +

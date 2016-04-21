@@ -119,7 +119,7 @@
     "Closed": "%{name} fermis tiun %{type}",
     "Mentioned": "%{name} menciis tiun %{type}",
     "MentionedIn": "%{name} menciis tiun %{type} en %{post}",
-    "Renamed": "%{name} renomiĝis tiun %{type} al %{name}",
+    "Renamed": "%{author} renomiĝis tiun %{type} al %{name}",
     "Comment": "Komenti",
     "Close": "Fermi %{type}",
     "Reopen": "Remalfermi %{type}"
