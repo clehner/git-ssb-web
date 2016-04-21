@@ -849,7 +849,9 @@ module.exports = function (opts, cb) {
     return pull(
       feedId ? ssb.createUserStream(opts) : ssb.createFeedStream(opts),
       pull.filter(function (msg) {
-        return msg.value.content.type in msgTypes
+        var c = msg.value.content
+        return c.type in msgTypes
+          || (c.type == 'post' && c.repo && c.issue)
       }),
       typeof filter == 'function' ? filter(opts) : filter,
       pull.take(20),
@@ -960,6 +962,19 @@ module.exports = function (opts, cb) {
             target: '<tt>' + escapeHTML(c.about) + '</tt>',
             name: link([c.about], c.name)
           }) + '</section>')
+      case 'post':
+        return pullReqs.get(c.issue, function (err, pr) {
+          if (err) return cb(err)
+          var type = pr.msg.value.content.type == 'pull-request' ?
+            'pull request' : 'issue.'
+          return cb(null, '<section class="collapse">' + msgLink + '<br>' +
+            req._t('CommentedOn', {
+              author: authorLink,
+              target: req._t(type) + ' ' + link([pr.id], pr.title, true)
+            }) +
+            '<blockquote>' + markdown(c.text) + '</blockquote>' +
+            '</section>')
+        })
       default:
         return cb(null, json(msg))
     }

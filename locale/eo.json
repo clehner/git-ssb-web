@@ -28,6 +28,7 @@
   "Pushed": "%{name} puŝis al %{repo}",
   "OpenedIssue": "%{name} malfermiĝis %{type} %{title} sur %{project}",
   "Named": "%{author} nomis %{target} %{name}",
+  "CommentedOn": "%{author} komentis %{target}",
   "Activity": "Aktivaĵo",
   "Repos": "Deponejoj",
   "UpdatedOnDate": "Ĝisdatigis je %{date}",

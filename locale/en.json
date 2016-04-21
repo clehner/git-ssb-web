@@ -28,6 +28,7 @@
   "Pushed": "%{name} pushed to %{repo}",
   "OpenedIssue": "%{name} opened %{type} %{title} on %{project}",
   "Named": "%{author} named %{target} %{name}",
+  "CommentedOn": "%{author} commented on %{target}",
   "Activity": "Activity",
   "Repos": "Repos",
   "UpdatedOnDate": "Updated %{date}",
