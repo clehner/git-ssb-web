@@ -13,7 +13,7 @@
     "pull-git-pack": "^0.2.0",
     "pull-git-repo": "^0.4.1",
     "pull-many": "^1.0.6",
-    "pull-paramap": "^1.1.2",
+    "pull-paramap": "^1.1.6",
     "pull-stream": "^3.1.0",
     "ssb-client": "^3.0.1",
     "ssb-config": "^1.1.0",
