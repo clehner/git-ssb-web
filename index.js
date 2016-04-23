@@ -685,16 +685,14 @@ G.serveMessage = function (req, id, path) {
           if (ref.isMsgId(c.issue)) {
             return self.pullReqs.get(c.issue, function (err, issue) {
               if (err) return cb(err)
-              var serve = issue.msg.value.content.type == 'pull-request'
-                ? self.repos.pulls.serveRepoPullReq
-                : self.repos.issues.serveRepoIssue
               self.getRepo(issue.project, function (err, repo) {
                 if (err) {
                   if (!repo) return cb(null,
                     self.repos.serveRepoNotFound(req, c.repo, err))
                   return cb(null, self.serveError(req, err))
                 }
-                cb(null, serve.call(self, req, GitRepo(repo), issue, path, id))
+                cb(null, self.repos.serveIssueOrPullRequest(req, GitRepo(repo),
+                  issue, path, id))
               })
             })
           }
@@ -711,10 +709,8 @@ G.serveMessage = function (req, id, path) {
                   self.repos.serveRepoNotFound(req, c.repo, err))
                 return cb(null, self.serveError(req, err))
               }
-              var serve = issue.msg.value.content.type == 'pull-request'
-                ? self.repos.pulls.serveRepoPullReq
-                : self.repos.issues.serveRepoIssue
-              cb(null, serve.call(self, req, GitRepo(repo), issue, path, id))
+              cb(null, self.repos.serveIssueOrPullRequest(req, GitRepo(repo),
+                issue, path, id))
             })
           } else if (ref.isMsgId(c.root)) {
             // comment on issue from patchwork?
