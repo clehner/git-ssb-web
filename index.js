@@ -621,12 +621,15 @@ G.renderFeedItem = function (req, msg, cb) {
         if (err) return cb(err)
         var type = pr.msg.value.content.type == 'pull-request' ?
           'pull request' : 'issue.'
+        var changed = self.issues.isStatusChanged(msg, pr)
         return cb(null, '<section class="collapse">' + msgLink + '<br>' +
-          req._t('CommentedOn', {
-            author: authorLink,
-            target: req._t(type) + ' ' + u.link([pr.id], pr.title, true)
+          req._t(changed == null ? 'CommentedOn' :
+              changed ? 'ReopenedIssue' : 'ClosedIssue', {
+            name: authorLink,
+            type: req._t(type),
+            title: u.link([pr.id], pr.title, true)
           }) +
-          '<blockquote>' + markdown(c.text) + '</blockquote>' +
+          (c.text ? '<blockquote>' + markdown(c.text) + '</blockquote>' : '') +
           '</section>')
       })
     default:
