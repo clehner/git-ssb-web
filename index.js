@@ -105,6 +105,8 @@ function GitSSBWeb(ssb, config, reconnect) {
   this.config = config
   this.reconnect = reconnect
 
+  if (config.logging && config.logging.level)
+    this.logLevel = this.logLevels.indexOf(config.logging.level)
   this.ssbAppname = config.appname || 'ssb'
   this.isPublic = config.public
   this.getVotes = require('./lib/votes')(ssb)
@@ -138,12 +140,20 @@ function GitSSBWeb(ssb, config, reconnect) {
 
 var G = GitSSBWeb.prototype
 
+G.logLevels = ['error', 'warning', 'notice', 'info']
+G.logLevel = G.logLevels.indexOf('notice')
+
+G.log = function (level) {
+  if (this.logLevels.indexOf(level) > this.logLevel) return
+  console.log.apply(console, [].slice.call(arguments, 1))
+}
+
 G.listen = function (host, port) {
   this.httpServer = http.createServer(G_onRequest.bind(this))
   this.httpServer.listen(port, host, function () {
     var hostName = ~host.indexOf(':') ? '[' + host + ']' : host
-    console.log('Listening on http://' + hostName + ':' + port + '/')
-  })
+    this.log('notice', 'Listening on http://' + hostName + ':' + port + '/')
+  }.bind(this))
 }
 
 G.getRepoName = function (ownerId, repoId, cb) {
@@ -192,7 +202,7 @@ function serve(req, res) {
 }
 
 function G_onRequest(req, res) {
-  console.log(req.method, req.url)
+  this.log('info', req.method, req.url)
   req._u = url.parse(req.url, true)
   var locale = req._u.query.locale ||
     (/locale=([^;]*)/.exec(req.headers.cookie) || [])[1]
