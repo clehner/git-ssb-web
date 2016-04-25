@@ -416,7 +416,7 @@ G.renderError = function (err, tag) {
     '<pre>' + u.escape(err.stack) + '</pre>'
 }
 
-function renderTry(read) {
+G.renderTry = function (read) {
   var self = this
   var ended
   return function (end, cb) {
@@ -460,7 +460,7 @@ G.serveTemplate = function (req, title, code, read) {
       '</h1>',
       '</form></header>',
       '<article>']),
-    renderTry(read),
+    this.renderTry(read),
     pull.once('<hr/></article></body></html>')
   ])
 }
