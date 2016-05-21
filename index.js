@@ -21,6 +21,8 @@ var PullRequests = require('ssb-pull-requests')
 var paramap = require('pull-paramap')
 var Mentions = require('ssb-mentions')
 var many = require('pull-many')
+var ident = require('pull-identify-filetype')
+var mime = require('mime-types')
 
 var hlCssPath = path.resolve(require.resolve('highlight.js'), '../../styles')
 
@@ -862,7 +864,36 @@ G.serveBlob = function (req, key) {
     self.getBlob(req, key, function (err, read) {
       if (err) cb(null, self.serveError(req, err))
       else if (!read) cb(null, self.serve404(req))
-      else cb(null, self.serveRaw()(read))
+      else cb(null, identToResp(read))
     })
   })
+}
+
+function identToResp(read) {
+  var ended, type, queue
+  var id = ident(function (_type) {
+    type = _type && mime.lookup(_type)
+  })(read)
+  return function (end, cb) {
+    if (ended) return cb(ended)
+    if (end) id(end, function (end) {
+      cb(end === true ? null : end)
+    })
+    else if (queue) {
+      var _queue = queue
+      queue = null
+      cb(null, _queue)
+    }
+    else if (!type)
+      id(null, function (end, data) {
+        if (ended = end) return cb(end)
+        queue = data
+        cb(null, [200, {
+          'Content-Type': type || 'text/plain; charset=utf-8',
+          'Cache-Control': 'max-age=31536000'
+        }])
+      })
+    else
+      id(null, cb)
+  }
 }
