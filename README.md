@@ -28,6 +28,13 @@ Options:
 - `--public`: make the app read-only (e.g. disable making digs), to make it
   suitable for serving publicly
 
+## Screenshots
+
+![screenshot of a user's activity](static/screenshot-user-activity.png)
+
+![screenshot of a repo](static/screenshot-repo.png)
+
+![screenshot of a pull request](static/screenshot-pr.png)
 
 [secure-scuttlebutt]: https://github.com/ssbc/secure-scuttlebutt
 [git-ssb]: %n92DiQh7ietE+R+X/I403LQoyf2DtR3WQfCkDKlheQU=.sha256
