@@ -2,6 +2,8 @@
 
 A web interface for git repos on [ssb][secure-scuttlebutt].
 
+Public demo: <https://git-ssb.celehner.com/>
+
 ## Install
 ```
 npm install -g git-ssb-web
