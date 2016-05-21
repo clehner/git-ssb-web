@@ -436,6 +436,7 @@ G.renderTry = function (read) {
 }
 
 G.serveTemplate = function (req, title, code, read) {
+  var self = this
   if (read === undefined)
     return this.serveTemplate.bind(this, req, title, code)
   var q = req._u.query.q && u.escape(req._u.query.q) || ''
@@ -453,15 +454,30 @@ G.serveTemplate = function (req, title, code, read) {
       '<link rel=stylesheet href="/highlight/github.css"/>',
       '</head>\n',
       '<body>',
-      '<header><form action="/search" method="get">' +
-      '<h1><a href="/">' + app + '' +
-        (appName != 'ssb' ? ' <sub>' + appName + '</sub>' : '') +
-      '</a> ' +
+      '<header>'
+    ]),
+    self.isPublic ? null : u.readOnce(function (cb) {
+      self.about(self.myId, function (err, about) {
+        if (err) return cb(err)
+        cb(null,
+          '<a href="' + u.encodeLink(this.myId) + '">' +
+            (about.image ?
+              '<img class="profile-icon icon-right"' +
+              ' src="/' + encodeURIComponent(about.image) + '"' +
+              ' alt="' + u.escape(about.name) + '">' : u.escape(about.name)) +
+          '</a>')
+      })
+    }),
+    pull.once(
+      '<form action="/search" method="get">' +
+      '<h1><a href="/">' + app +
+        (appName == 'ssb' ? '' : ' <sub>' + appName + '</sub>') +
+      '</a></h1> ' +
       '<input class="search-bar" name="q" size="60"' +
         ' placeholder="🔍" value="' + q + '" />' +
-      '</h1>',
-      '</form></header>',
-      '<article>']),
+      '</form>' +
+      '</header>' +
+      '<article>'),
     this.renderTry(read),
     pull.once('<hr/></article></body></html>')
   ])

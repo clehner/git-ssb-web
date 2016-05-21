@@ -36,6 +36,7 @@ pre > code {
 header h1 {
   font-weight: inherit;
   font-size: 1.5em;
+  display: inline;
 }
 
 header h1 :link,
@@ -56,6 +57,17 @@ header .search-bar {
   max-width: 65%;
   padding: .25em;
   font-size: 10pt;
+}
+
+.profile-icon {
+  height: 1.5em;
+  width: 1.5em;
+  margin: .5em .5ex 0 .5ex;
+  border: none;
+}
+
+.icon-right {
+  float: right;
 }
 
 /* content */
@@ -234,7 +246,6 @@ nav a.active {
   font-weight: normal;
   display: inline-block;
   margin: 0;
-
 }
 
 h2 .user-id {
