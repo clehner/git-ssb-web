@@ -141,6 +141,7 @@ section img {
   border-style: none solid solid none;
   border-radius: .5ex;
   cursor: pointer;
+  color: black;
 }
 .btn:hover {
   background-color: #f6f6f6;
