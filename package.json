@@ -1,6 +1,6 @@
 {
   "name": "git-ssb-web",
-  "version": "1.15.0",
+  "version": "1.15.1",
   "description": "web server for browsing git repos on ssb",
   "bin": "server.js",
   "dependencies": {
